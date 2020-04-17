@@ -6,6 +6,7 @@ extern "C" fn test() -> u32 {
     2
 }
 
+//#[hook(offset = 0x12345)]
 #[hook(replace = test)]
 fn test_replacement() -> u32 {
 
@@ -27,4 +28,9 @@ pub fn main() {
     let x = test();
 
     println!("[main] test returned: {}", x); // 3
+
+    println!("{}", std::fs::read_to_string("sd:/test.txt").unwrap());
+    for x in std::fs::read_dir("sd:/atmosphere").unwrap() {
+        println!("{:?}", x.unwrap());
+    }
 }
