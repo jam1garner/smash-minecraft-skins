@@ -11,6 +11,8 @@ A template for writing skyline plugins for modding switch games using Rust and s
 
 ## Setup
 
+NOTE: for easier/newer setup, use [cargo skyline](https://github.com/jam1garner/cargo-skyline)
+
 1. Install linkle and my fork of Xargo:
 ```sh
   # Install linkle
