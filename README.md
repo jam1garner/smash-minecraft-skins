@@ -56,14 +56,16 @@ to reflect what you want your module to be named on your console.
 ```sh
 cargo nro
 ```
-Your resulting plugin will be the `.nro` found in the folder ```
+Your resulting plugin will be the `.nro` found in the folder
+```
 [plugin name]/target/aarch64-skyline-switch
 ```
 To install (you must already have skyline installed on your switch), put the plugin on your SD at:
 ```
 sd:/atmosphere/contents/[title id]/romfs/skyline/plugins
 ```
-So, for example, smash plugins go in the following folder: ```
+So, for example, smash plugins go in the following folder:
+```
 sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins
 ```
 
@@ -71,10 +73,12 @@ sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins
 
 **"Cannot be used on stable"**
 
-First, make sure you have a nightly installed: ```
+First, make sure you have a nightly installed:
+```
 rustup install nightly
 ```
-Second, make sure it is your default channel: ```
+Second, make sure it is your default channel:
+```
 rustup default nightly
 ```
 ---
