@@ -20,7 +20,7 @@ SECTIONS
     *(.nro_header)
     KEEP(*(.text.jmp))
 
-    . = MAX(0x80, .);
+    . = 0x80;
 
     *(.text .text.*)
     *(.plt .plt.*)

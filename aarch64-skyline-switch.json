@@ -34,8 +34,7 @@
   "post-link-args": {
     "ld.lld": [
       "--no-gc-sections",
-      "--eh-frame-hdr",
-      "--build-id"
+      "--eh-frame-hdr"
     ]
   },
   "relro-level": "off",
