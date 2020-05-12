@@ -3,6 +3,9 @@ name: Rust
 on:
   push:
     branches: [ master ]
+  schedule:
+    - cron: '0 * * * *'
+  repository_dispatch:
 
 jobs:
   build:
