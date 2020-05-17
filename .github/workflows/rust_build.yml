@@ -1,0 +1,34 @@
+name: Rust Build
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install cargo-skyline
+      run: cargo install --git https://github.com/jam1garner/cargo-skyline
+    - name: Install rust-std-skyline-squashed
+      run: cd .. && git clone https://github.com/jam1garner/rust-std-skyline-squashed && cd -
+    - name: Attempt to build
+      run: PATH=$PATH:/usr/share/rust/.rustup/toolchains/nightly-2020-04-10-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin cargo skyline build --release
+
+# uncomment the build step below to build on every change to master.
+
+#     - name: Upload Release
+#       uses: majkrzak/create-release@latest
+#       with:
+#         token: ${{ secrets.GITHUB_TOKEN }}
+#         name: master
+#         code: master
+#         body: Build of skyline-rs-template from master.
+#         prerelease: true
+#         recreate: true
+#         assets: ./target/aarch64-skyline-switch/release/libskyline_rs_template.nro:libskyline_rs_template.nro:application/octet-stream
+  
+
