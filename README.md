@@ -9,7 +9,7 @@ A template for writing skyline plugins for modding switch games using Rust and s
 * [Rust](https://www.rust-lang.org/install.html) - make sure rustup, cargo, and rustc (preferrably nightly) are installed.
 * [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 
-## Setup
+## Setup (Outdated, do not use)
 
 NOTE: for easier/newer setup, use [cargo skyline](https://github.com/jam1garner/cargo-skyline)
 
