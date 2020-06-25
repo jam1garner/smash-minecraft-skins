@@ -28,6 +28,6 @@ jobs:
 #        gzip: false
 #        tag: master
 #        name: master
-#        body: Build of {{env.PLUGIN_NAME}} from master.
+#        body: Build of ${{env.PLUGIN_NAME}} from master.
 #        files: >
-#          ./target/aarch64-skyline-switch/release/{{env.PLUGIN_NAME}}
+#          ./target/aarch64-skyline-switch/release/${{env.PLUGIN_NAME}}
