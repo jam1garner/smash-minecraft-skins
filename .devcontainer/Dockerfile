@@ -1,37 +1,16 @@
-# Note: You can use any Debian/Ubuntu based image you want. 
-FROM jugeeya/cargo-skyline:latest
+FROM clux/muslrust:stable
 
-# [Option] Install zsh
-ARG INSTALL_ZSH="true"
-# [Option] Upgrade OS packages to their latest versions
-ARG UPGRADE_PACKAGES="false"
-# [Option] Enable non-root Docker access in container
-ARG ENABLE_NONROOT_DOCKER="true"
+RUN cargo install --git https://github.com/jam1garner/cargo-skyline
 
-# Install needed packages and setup non-root user. Use a separate RUN statement to add your own dependencies.
-ARG USERNAME=vscode
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-ARG SOURCE_SOCKET=/var/run/docker-host.sock
-ARG TARGET_SOCKET=/var/run/docker.sock
-COPY library-scripts/*.sh /tmp/library-scripts/
-RUN apt-get update \
-    && /bin/bash /tmp/library-scripts/common-debian.sh "${INSTALL_ZSH}" "${USERNAME}" "${USER_UID}" "${USER_GID}" "${UPGRADE_PACKAGES}" \
-    # Use Docker script from script library to set things up
-    && /bin/bash /tmp/library-scripts/docker-debian.sh "${ENABLE_NONROOT_DOCKER}" "${SOURCE_SOCKET}" "${TARGET_SOCKET}" "${USERNAME}" \
-    # Clean up
-    && apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/* /tmp/library-scripts/
+RUN git clone https://github.com/jam1garner/rust-std-skyline-squashed
 
-# Necessary for cargo-skyline
+RUN cargo install xargo
+
+RUN cd /volume/rust-std-skyline-squashed && cargo update
+
+ENV XARGO_RUST_SRC /volume/rust-std-skyline-squashed/src
+
+ENV PATH="/root/.rustup/toolchains/nightly-2020-04-10-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin:${PATH}"
+
 RUN mkdir /workspaces/
 RUN ln -s /volume/rust-std-skyline-squashed /workspaces/rust-std-skyline-squashed
-
-# Setting the ENTRYPOINT to docker-init.sh will configure non-root access to 
-# the Docker socket if "overrideCommand": false is set in devcontainer.json. 
-# The script will also execute CMD if you need to alter startup behaviors.
-ENTRYPOINT [ "/usr/local/share/docker-init.sh" ]
-CMD [ "sleep", "infinity" ]
-
-# [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get -y install --no-install-recommends <your-package-list-here>
