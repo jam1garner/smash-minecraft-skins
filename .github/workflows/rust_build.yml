@@ -19,7 +19,7 @@ jobs:
 # uncomment the build step below to build on every change to master.
 #    - name: Update Release
 #      env:
-#          PLUGIN_NAME: 'libskyline_rs_template.nro'  #  change this to the name of your plugin
+#          PLUGIN_NAME: 'libminecraft_skins.nro'  #  change this to the name of your plugin
 #      uses: meeDamian/github-release@2.0
 #      with:
 #        token: ${{ secrets.GITHUB_TOKEN }}

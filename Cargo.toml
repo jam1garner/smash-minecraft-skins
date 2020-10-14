@@ -1,5 +1,5 @@
 [package]
-name = "skyline_rs_template"
+name = "minecraft_skins"
 version = "0.1.0"
 authors = ["jam1garner <jam1.mcleod@hotmail.com>"]
 edition = "2018"
@@ -13,6 +13,22 @@ crate-type = ["cdylib"]
 [dependencies]
 skyline = { git = "https://github.com/ultimate-research/skyline-rs.git" }
 skyline_smash = { git = "https://github.com/ultimate-research/skyline-smash.git" }
+skyline-web = { path = "../skyline-web" }
+ramhorns = "0.10.0"
+lazy_static = "1.4.0"
+minreq = { version = "2.2.1", features = ["https", "json-using-serde"] }
+serde = { version = "1", features = ["derive"] }
+base64 = "0.13.0"
+serde_json = "1"
+parking_lot = "0.11.0"
+
+#nutexb = { git = "https://github.com/jam1garner/nutexb" }
+nutexb = { path = "../nutexb" }
+image = "0.23.10"
+
+[patch.crates-io]
+ring = { path = "../ring" }
+webpki = { path = "../webpki" }
 
 [profile.dev]
 panic = "abort"

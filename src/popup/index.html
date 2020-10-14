@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Skin Selector</title>
+    <style>
+        .skin-display {
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            /* crop pos: 8, 8 | size: 8, 8 */
+            position: absolute;
+            width: 1600px;
+            height: 1600px;
+            clip: rect(200px, 400px, 400px, 200px);
+        }
+
+        .skin-button {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border-radius: 0px;
+            background: none;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <img src="steve.png" class="skin-display" style="top: -200px; left: -200px;">
+    <button class="skin-button" style="left: 0px; top: 0px;" onclick="location.href='http://localhost/steve';"></button>
+    
+    {{#skins}}
+    <img src="{{path}}" class="skin-display" style="top: {{top}}px; left: {{left}}px;">
+    <button class="skin-button" style="left: {{button_left}}px; top: {{button_top}}px;" onclick="location.href='http://localhost/{{path}}';"></button>
+    {{/skins}}
+
+    <img src="plus_skin.png" class="skin-display" style="top: {{add_top}}px; left: {{add_left}}px;">
+    <button class="skin-button" style="left: {{add_button_left}}px; top: {{add_button_top}}px;" onclick="location.href='http://localhost/add';"></button>
+</body>
+</html>

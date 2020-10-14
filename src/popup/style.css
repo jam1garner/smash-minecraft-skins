@@ -1,0 +1,14 @@
+.skin-display {
+    image-rendering: crisp-edges;
+    /* crop pos: 8, 8 | size: 8, 8 */
+    position: absolute;
+    left: -400px;
+    top: -400px;
+    width: 3200px;
+    height: 3200px;
+    clip: rect(400px, 800px, 800px, 400px);
+}
+
+.skin-display:active {
+    outline: 1px solid red;
+}
