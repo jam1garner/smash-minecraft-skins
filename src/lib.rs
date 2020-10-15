@@ -7,9 +7,10 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 
 use serde::Deserialize;
 use parking_lot::Mutex;
-use image::DynamicImage;
 use skyline_web::Webpage;
+use image::{Pixel, DynamicImage};
 use ramhorns::{Template, Content};
+use percent_encoding::percent_decode_str;
 
 mod keyboard;
 
@@ -147,7 +148,7 @@ impl Skins {
             "http://localhost/steve" => Skin::Steve,
             "http://localhost/add" => Skin::Add,
             url if !url.starts_with(LOCALHOST) => Skin::Steve,
-            url => Skin::Custom(url[LOCALHOST.len()..].to_owned())
+            url => Skin::Custom(percent_decode_str(&url[LOCALHOST.len()..]).decode_utf8_lossy().into_owned())
         }
     }
 
@@ -314,6 +315,18 @@ static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
 static LAST_SELECTED: AtomicUsize = AtomicUsize::new(0xFF);
 static LAST_OPENED: Mutex<Option<Instant>> = parking_lot::const_mutex(None);
 
+extern "C" {
+    #[link_name = "_ZN2nn5prepo10PlayReport3AddEPKcS3_"]
+    fn prepo_add_play_report(a: u64, b: u64, c: u64) -> u64;
+}
+
+#[skyline::hook(replace = prepo_add_play_report)]
+fn prepo_add_play_report_hook(a: u64, b: u64, c: u64) -> u64 {
+    LAST_SELECTED.store(0xFF, Ordering::SeqCst);
+
+    original!()(a, b, c)
+}
+
 static OPENED: [AtomicBool; 8] = [
     AtomicBool::new(false),
     AtomicBool::new(false),
@@ -332,6 +345,11 @@ extern "C" {
     fn subscribe_callback_with_size(hash: u64, filesize: u32, extension: *const u8, extension_len: usize, callback: ArcCallback);
 }
 
+const MAX_HEIGHT: usize = 64;
+const MAX_WIDTH: usize = 64;
+const MAX_DATA_SIZE: usize = (MAX_HEIGHT * MAX_WIDTH * 4);
+const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
+
 extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
         OPENED[slot].store(false, Ordering::SeqCst);
@@ -342,13 +360,35 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
 
         let mut skin_data = skin_data.to_rgba();
 
-        for pixel in skin_data.iter_mut() {
-            *pixel = (((*pixel) as usize) * 722 / 1000) as u8;
+        for row in skin_data.rows_mut() {
+            for pixel in row {
+                let channels = pixel.channels_mut();
+                // 0..3 - don't apply to alpha channel
+                for i in 0..3 {
+                    let pixel = &mut channels[i];
+                    
+                    // gamma brightening by a factor of 1.385, bounded to [0, 184]
+                    *pixel = ((((*pixel as f64) / 255.0).powf(1.0f64 / 1.385f64) * 255.0) * 184.0 / 255.0) as u8;
+                }
+            }
         }
+
+        //skin_data.save("sd:/test.png").unwrap();
+
+        let real_size = (skin_data.height() as usize * skin_data.width() as usize * 4) + 0xb0;
 
         let mut data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
         let mut writer = std::io::Cursor::new(data_out);
         nutexb::writer::write_nutexb("steve_minecraft???", &DynamicImage::ImageRgba8(skin_data), &mut writer).unwrap();
+
+        let mut data_out = writer.into_inner();
+
+        if real_size != MAX_FILE_SIZE {
+            let start_of_header = real_size - 0xb0;
+
+            let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
+            to.copy_from_slice(&from[start_of_header..real_size]);
+        }
 
         true
     } else {
@@ -375,12 +415,14 @@ extern "C" fn steve_ui_callback(hash: u64, _: *mut u8, _: usize) -> bool {
 
 #[skyline::main(name = "minecraft_skins")]
 pub fn main() {
+    skyline::install_hooks!(prepo_add_play_report_hook);
+
     unsafe {
         for hash in &STEVE_BNTX_FILES {
             subscribe_callback_with_size(*hash, 0x10000, "nus3audio".as_ptr(), "nus3audio".len(), steve_ui_callback);
         }
         for hash in &STEVE_NUTEXB_FILES {
-            subscribe_callback_with_size(*hash, 0x40b0, "nutexb".as_ptr(), "nutexb".len(), steve_callback);
+            subscribe_callback_with_size(*hash, MAX_FILE_SIZE as _, "nutexb".as_ptr(), "nutexb".len(), steve_callback);
         }
     }
 }

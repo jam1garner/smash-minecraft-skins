@@ -1,6 +1,6 @@
 [package]
 name = "minecraft_skins"
-version = "0.1.0"
+version = "1.1.0"
 authors = ["jam1garner <jam1.mcleod@hotmail.com>"]
 edition = "2018"
 
@@ -22,9 +22,10 @@ base64 = "0.13.0"
 serde_json = "1"
 parking_lot = "0.11.0"
 
-#nutexb = { git = "https://github.com/jam1garner/nutexb" }
-nutexb = { path = "../nutexb" }
+nutexb = { git = "https://github.com/jam1garner/nutexb" }
+#nutexb = { path = "../nutexb" }
 image = "0.23.10"
+percent-encoding = "2.1.0"
 
 [patch.crates-io]
 ring = { path = "../ring" }
