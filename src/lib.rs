@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use serde::Deserialize;
 use parking_lot::Mutex;
 use skyline_web::Webpage;
-use image::{Pixel, DynamicImage};
+use image::{Pixel, DynamicImage, GenericImage};
 use ramhorns::{Template, Content};
 use percent_encoding::percent_decode_str;
 
@@ -78,6 +78,23 @@ fn index_to_button_x_y(i: isize) -> (isize, isize) {
 
 static STEVE_PNG: &[u8] = include_bytes!("popup/steve.png");
 
+fn fix_png(path: &Path) -> Option<Vec<u8>> {
+    let (width, height) = image::image_dimensions(path).ok()?;
+
+    if width * 2 == height {
+        let img = fs::read(path).ok()?;
+        let image = image::load_from_memory_with_format(&img, image::ImageFormat::Png).ok()?;
+        let mut image_buffer = Vec::with_capacity(img.len());
+        DynamicImage::ImageRgba8(convert_to_modern_skin(&image.to_rgba())) 
+            .write_to(&mut image_buffer, image::ImageFormat::Png)
+            .ok()?;
+
+        Some(image_buffer)
+    } else {
+        fs::read(path).ok()
+    }
+}
+
 impl Skins {
     fn from_cache() -> Option<Self> {
         let _ = fs::create_dir_all(CACHE_DIR);
@@ -136,7 +153,7 @@ impl Skins {
                 &self.skin_files
                     .iter()
                     .zip(self.skins.iter())
-                    .filter_map(|(path, skin)| Some((&skin[..], fs::read(path).ok()?)))
+                    .filter_map(|(path, skin)| Some((&skin[..], fix_png(&path)?)))
                     .collect::<Vec<(&str, Vec<u8>)>>()
             )
             .background(skyline_web::Background::BlurredScreenshot)
@@ -345,20 +362,79 @@ extern "C" {
     fn subscribe_callback_with_size(hash: u64, filesize: u32, extension: *const u8, extension_len: usize, callback: ArcCallback);
 }
 
-const MAX_HEIGHT: usize = 64;
-const MAX_WIDTH: usize = 64;
+const MAX_HEIGHT: usize = 256;
+const MAX_WIDTH: usize = 256;
 const MAX_DATA_SIZE: usize = (MAX_HEIGHT * MAX_WIDTH * 4);
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
+
+/// Copy from one area to another, then flip the resulting area
+fn copy_flipped(image: &mut image::RgbaImage, from_pos: (u32, u32), size: (u32, u32), to_pos: (u32, u32)) {
+    let (x, y) = from_pos;
+    let (width, height) = size;
+    let (to_x, to_y) = to_pos;
+    image.copy_within(image::math::Rect { x, y, width, height }, to_x, to_y);
+    
+    image::imageops::flip_horizontal_in_place(&mut image.sub_image(to_x, to_y, width, height));
+}
+
+/// Copy from one area to another, shift horizontally (with wrapping) N pixels, then flip the resulting area
+fn copy_rotated_right_flipped(image: &mut image::RgbaImage, from_pos: (u32, u32), size: (u32, u32), to_pos: (u32, u32), shift: u32) {
+    let (x, y) = from_pos;
+    let (width, height) = size;
+    let (to_x, to_y) = to_pos;
+    let shift = shift % width;
+    
+    image.copy_within(image::math::Rect { x, y, width: width - shift, height }, to_x + shift, to_y);
+    image.copy_within(image::math::Rect { x: (width - shift), y, width: shift, height }, to_x, to_y);
+    
+    image::imageops::flip_horizontal_in_place(&mut image.sub_image(to_x, to_y, width, height));
+}
+
+fn convert_to_modern_skin(skin_data: &image::RgbaImage) -> image::RgbaImage {
+    let mut new_skin = image::RgbaImage::new(64, 64);
+
+    new_skin.copy_from(skin_data, 0, 0).unwrap();
+
+    const ARM_SIZE: (u32, u32) = (4, 4);
+
+    // Copy and flip the top of leg
+    copy_flipped(&mut new_skin, (4, 16), ARM_SIZE, (20, 48));
+
+    // Copy and flip the bottom of leg
+    copy_flipped(&mut new_skin, (8, 16), ARM_SIZE, (24, 48));
+
+    // Copy and flip the top of arm
+    copy_flipped(&mut new_skin, (44, 16), ARM_SIZE, (36, 48));
+
+    // Copy and flip the bottom of arm
+    copy_flipped(&mut new_skin, (48, 16), ARM_SIZE, (40, 48));
+
+    // Copy the leg sides
+    copy_rotated_right_flipped(&mut new_skin, (0, 20), (16, 12), (16, 52), 4);
+    
+    // Copy the arm sides
+    copy_rotated_right_flipped(&mut new_skin, (40, 20), (16, 12), (32, 52), 4);
+
+    new_skin
+}
 
 extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
         OPENED[slot].store(false, Ordering::SeqCst);
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
-        let skin_data = skin_path.map(|path| image::load_from_memory(&fs::read(path).unwrap()).unwrap())
-                                .unwrap_or_else(|| image::load_from_memory(STEVE_PNG).unwrap());
+
+        let skin_data = if let Some(path) = skin_path {
+            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
+        } else {
+            return false
+        };
 
         let mut skin_data = skin_data.to_rgba();
+
+        if skin_data.dimensions() == (64, 32) {
+            skin_data = convert_to_modern_skin(&skin_data);
+        }
 
         for row in skin_data.rows_mut() {
             for pixel in row {
@@ -372,8 +448,6 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
                 }
             }
         }
-
-        //skin_data.save("sd:/test.png").unwrap();
 
         let real_size = (skin_data.height() as usize * skin_data.width() as usize * 4) + 0xb0;
 
