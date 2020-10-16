@@ -81,7 +81,7 @@ static STEVE_PNG: &[u8] = include_bytes!("popup/steve.png");
 fn fix_png(path: &Path) -> Option<Vec<u8>> {
     let (width, height) = image::image_dimensions(path).ok()?;
 
-    if width * 2 == height {
+    if width == height * 2 {
         let img = fs::read(path).ok()?;
         let image = image::load_from_memory_with_format(&img, image::ImageFormat::Png).ok()?;
         let mut image_buffer = Vec::with_capacity(img.len());
@@ -362,8 +362,8 @@ extern "C" {
     fn subscribe_callback_with_size(hash: u64, filesize: u32, extension: *const u8, extension_len: usize, callback: ArcCallback);
 }
 
-const MAX_HEIGHT: usize = 256;
-const MAX_WIDTH: usize = 256;
+const MAX_HEIGHT: usize = 1024;
+const MAX_WIDTH: usize = 1024;
 const MAX_DATA_SIZE: usize = (MAX_HEIGHT * MAX_WIDTH * 4);
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
 
@@ -391,29 +391,33 @@ fn copy_rotated_right_flipped(image: &mut image::RgbaImage, from_pos: (u32, u32)
 }
 
 fn convert_to_modern_skin(skin_data: &image::RgbaImage) -> image::RgbaImage {
-    let mut new_skin = image::RgbaImage::new(64, 64);
+    let SCALE = skin_data.width() / 64;
+
+    let mut new_skin = image::RgbaImage::new(64 * SCALE, 64 * SCALE);
 
     new_skin.copy_from(skin_data, 0, 0).unwrap();
 
-    const ARM_SIZE: (u32, u32) = (4, 4);
+    let ARM_SIZE: (u32, u32) = (4 * SCALE, 4 * SCALE);
 
     // Copy and flip the top of leg
-    copy_flipped(&mut new_skin, (4, 16), ARM_SIZE, (20, 48));
+    copy_flipped(&mut new_skin, (4 * SCALE, 16 * SCALE), ARM_SIZE, (20 * SCALE, 48 * SCALE));
 
     // Copy and flip the bottom of leg
-    copy_flipped(&mut new_skin, (8, 16), ARM_SIZE, (24, 48));
+    copy_flipped(&mut new_skin, (8 * SCALE, 16 * SCALE), ARM_SIZE, (24 * SCALE, 48 * SCALE));
 
     // Copy and flip the top of arm
-    copy_flipped(&mut new_skin, (44, 16), ARM_SIZE, (36, 48));
+    copy_flipped(&mut new_skin, (44 * SCALE, 16 * SCALE), ARM_SIZE, (36 * SCALE, 48 * SCALE));
 
     // Copy and flip the bottom of arm
-    copy_flipped(&mut new_skin, (48, 16), ARM_SIZE, (40, 48));
+    copy_flipped(&mut new_skin, (48 * SCALE, 16 * SCALE), ARM_SIZE, (40 * SCALE, 48 * SCALE));
 
     // Copy the leg sides
-    copy_rotated_right_flipped(&mut new_skin, (0, 20), (16, 12), (16, 52), 4);
+    copy_rotated_right_flipped(&mut new_skin, (0, 20 * SCALE), (16 * SCALE, 12 * SCALE), (16 * SCALE, 52 * SCALE), 4 * SCALE);
     
     // Copy the arm sides
-    copy_rotated_right_flipped(&mut new_skin, (40, 20), (16, 12), (32, 52), 4);
+    copy_rotated_right_flipped(&mut new_skin, (40 * SCALE, 20 * SCALE), (16 * SCALE, 12 * SCALE), (32 * SCALE, 52 * SCALE), 4 * SCALE);
+
+    new_skin.save("sd:/test.png");
 
     new_skin
 }
@@ -432,7 +436,8 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
 
         let mut skin_data = skin_data.to_rgba();
 
-        if skin_data.dimensions() == (64, 32) {
+        let (width, height) = skin_data.dimensions();
+        if width == height * 2 {
             skin_data = convert_to_modern_skin(&skin_data);
         }
 
