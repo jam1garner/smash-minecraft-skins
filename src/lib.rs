@@ -12,6 +12,10 @@ use image::{Pixel, DynamicImage, GenericImage};
 use ramhorns::{Template, Content};
 use percent_encoding::percent_decode_str;
 
+use smash::lib::lua_const::FIGHTER_KIND_PICKEL;
+use skyline::logging::HexDump;
+use skyline::hooks::InlineCtx;
+
 mod keyboard;
 
 lazy_static::lazy_static! {
@@ -274,28 +278,6 @@ struct SkinMetadata {
     model: String,
 }
 
-/*use skyline::nn::fs::GetEntryType;
-use std::ffi::CStr;
-
-#[skyline::hook(replace = GetEntryType)]
-fn get_entry_type(x: u64, y: *const i8) {
-    let path = unsafe { CStr::from_ptr(y) };
-    
-    println!("{:?}", path.to_str().unwrap());
-
-    original!()(x, y)
-}
-
-extern "C" {
-    #[link_name = "_ZN2nn4diag6detail5AbortEPKNS_6ResultE"]
-    fn abort(result: u32) -> !;
-}
-
-#[skyline::hook(replace = abort)]
-fn abort_hook(result: u32) -> ! {
-    panic!("Abort with result {}", result);
-}*/
-
 static STEVE_NUTEXB_FILES: [u64; 8] = [
     smash::hash40("fighter/pickel/model/body/c00/def_pickel_001_col.nutexb"),
     smash::hash40("fighter/pickel/model/body/c01/def_pickel_001_col.nutexb"),
@@ -417,8 +399,6 @@ fn convert_to_modern_skin(skin_data: &image::RgbaImage) -> image::RgbaImage {
     // Copy the arm sides
     copy_rotated_right_flipped(&mut new_skin, (40 * SCALE, 20 * SCALE), (16 * SCALE, 12 * SCALE), (32 * SCALE, 52 * SCALE), 4 * SCALE);
 
-    new_skin.save("sd:/test.png");
-
     new_skin
 }
 
@@ -453,6 +433,8 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
                 }
             }
         }
+    
+        //skin_data.save("sd:/test.png");
 
         let real_size = (skin_data.height() as usize * skin_data.width() as usize * 4) + 0xb0;
 
@@ -475,31 +457,48 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     }
 }
 
-extern "C" fn steve_ui_callback(hash: u64, _: *mut u8, _: usize) -> bool {
-    if let Some(slot) = STEVE_BNTX_FILES.iter().position(|&x| x == hash) {
-        // Don't offer a selection for the same skin multiple times in a row
-        if LAST_SELECTED.swap(slot, Ordering::SeqCst) != slot {
-            if LAST_OPENED.lock().map(|time| time.elapsed().as_millis() > 100).unwrap_or(true) {
-                if !OPENED[slot].swap(true, Ordering::SeqCst) {
-                    *SELECTED_SKINS[slot].lock() = SKINS.lock().get_skin_path();
-                }
-            }
+#[derive(Debug)]
+struct UnkPtr1 {
+    ptrs: [&'static u64; 7],
+}
 
-            *LAST_OPENED.lock() = Some(Instant::now());
-        }
+#[derive(Debug)]
+struct UnkPtr2 {
+    bunch_bytes: [u8; 0x20],
+    bunch_bytes2: [u8; 0x20]
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct FighterInfo {
+    unk_ptr1: &'static UnkPtr1,
+    unk_ptr2: &'static UnkPtr2,
+    unk1: [u8; 0x20],
+    unk2: [u8; 0x20],
+    unk3: [u8; 0x8],
+    fighter_id: u8,
+    unk4: [u8;0xB],
+    fighter_slot: u8,
+}
+
+#[skyline::hook(offset = 0x661acc, inline)]
+fn css_fighter_selected(ctx: &InlineCtx) {
+    let infos = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfo) };
+
+    let is_steve = *FIGHTER_KIND_PICKEL == infos.fighter_id as i32;
+
+    if is_steve {
+        let slot = infos.fighter_slot as usize;
+        
+        *SELECTED_SKINS[slot].lock() = SKINS.lock().get_skin_path();
     }
-
-    false
 }
 
 #[skyline::main(name = "minecraft_skins")]
 pub fn main() {
-    skyline::install_hooks!(prepo_add_play_report_hook);
+    skyline::install_hooks!(prepo_add_play_report_hook, css_fighter_selected);
 
     unsafe {
-        for hash in &STEVE_BNTX_FILES {
-            subscribe_callback_with_size(*hash, 0x10000, "nus3audio".as_ptr(), "nus3audio".len(), steve_ui_callback);
-        }
         for hash in &STEVE_NUTEXB_FILES {
             subscribe_callback_with_size(*hash, MAX_FILE_SIZE as _, "nutexb".as_ptr(), "nutexb".len(), steve_callback);
         }
