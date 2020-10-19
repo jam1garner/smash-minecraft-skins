@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::Mutex;
-use image::{Pixel, DynamicImage};
+use image::DynamicImage;
 
 use skyline::hooks::InlineCtx;
 use smash::lib::lua_const::FIGHTER_KIND_PICKEL;
@@ -15,10 +15,13 @@ mod skin_menu;
 mod skin_files;
 mod modern_skin;
 mod minecraft_api;
+mod color_correct;
 mod stock_generation;
 
 use skin_files::*;
 use modern_skin::convert_to_modern_skin;
+
+use color_correct::color_correct;
 
 lazy_static::lazy_static! {
     static ref SKINS: Mutex<skin_menu::Skins> = Mutex::new(
@@ -27,6 +30,17 @@ lazy_static::lazy_static! {
 }
 
 static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+];
+
+static RENDERS: [Mutex<Option<image::RgbaImage>>; 8] = [
     parking_lot::const_mutex(None),
     parking_lot::const_mutex(None),
     parking_lot::const_mutex(None),
@@ -80,19 +94,8 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
             skin_data = convert_to_modern_skin(&skin_data);
         }
 
-        for row in skin_data.rows_mut() {
-            for pixel in row {
-                let channels = pixel.channels_mut();
-                // 0..3 - don't apply to alpha channel
-                for i in 0..3 {
-                    let pixel = &mut channels[i];
-                    
-                    // gamma brightening by a factor of 1.385, bounded to [0, 184]
-                    *pixel = ((((*pixel as f64) / 255.0).powf(1.0f64 / 1.385f64) * 255.0) * 184.0 / 255.0) as u8;
-                }
-            }
-        }
-    
+        color_correct(&mut skin_data);
+
         //skin_data.save("sd:/test.png");
 
         let real_size = (skin_data.height() as usize * skin_data.width() as usize * 4) + 0xb0;
@@ -128,6 +131,12 @@ extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize) -> boo
         };
 
         let skin = skin_data.to_rgba();
+        let (width, height) = skin.dimensions();
+        let skin = if width == height * 2 {
+            convert_to_modern_skin(&skin)
+        } else {
+            skin
+        };
         let stock_icon = stock_generation::gen_stock_image(&skin);
 
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
@@ -175,8 +184,24 @@ fn css_fighter_selected(ctx: &InlineCtx) {
 
     if is_steve {
         let slot = infos.fighter_slot as usize;
+
+        let path = SKINS.lock().get_skin_path();
         
-        *SELECTED_SKINS[slot].lock() = SKINS.lock().get_skin_path();
+        *SELECTED_SKINS[slot].lock() = path.clone();
+
+        let mut render = RENDERS[slot].lock();
+        let mut skin_data = if let Some(path) = path {
+            image::load_from_memory(&fs::read(path).unwrap())
+                .unwrap()
+                .into_rgba()
+        } else {
+            *render = None;
+            return
+        };
+        
+        color_correct(&mut skin_data);
+        
+        *render = Some(minecraft_render::create_render(&skin_data));
     }
 }
 
@@ -185,31 +210,45 @@ const MAX_CHARA_3_SIZE: u32 = 0x727068;
 const MAX_CHARA_4_SIZE: u32 = 0x2d068;
 const MAX_CHARA_6_SIZE: u32 = 0x81068;
 
-fn red(width: u32, height: u32) -> image::DynamicImage {
-    DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
-        width,
-        height,
-        image::Rgba::from([0xFFu8, 0, 0, 0xFF])
-    ))
+static CHARA_3_MASK: &[u8] = include_bytes!("chara_3_mask.png");
+static CHARA_4_MASK: &[u8] = include_bytes!("chara_4_mask.png");
+static CHARA_6_MASK: &[u8] = include_bytes!("chara_6_mask.png");
+
+use parking_lot::{MutexGuard, MappedMutexGuard};
+
+fn get_render<'a>(slot: usize) -> Option<MappedMutexGuard<'a, image::RgbaImage>> {
+    let lock = RENDERS[slot].lock();
+    if lock.is_none() {
+        None
+    } else {
+        Some(MutexGuard::map(lock, |x| x.as_mut().unwrap()))
+    }
 }
 
 extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_3.iter().position(|&x| x == hash) {
-        let skin_path = SELECTED_SKINS[slot].lock();
-        let skin_path: Option<&Path> = skin_path.as_deref();
-
-        let skin_data = if let Some(path) = skin_path {
-            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
+        let output = if let Some(render) = get_render(slot) {
+            render
         } else {
             return false
         };
-        
+
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
         let mut writer = std::io::Cursor::new(data_out);
 
-        let chara_3 = red(968, 1864);
+        let chara_3_mask = image::load_from_memory_with_format(CHARA_3_MASK, image::ImageFormat::Png)
+            .unwrap()
+            .into_rgba();
 
-        bntx::BntxFile::from_image(chara_3, "steve")
+        let chara_3 = minecraft_render::create_chara_image(
+            &output,
+            &chara_3_mask,
+            1.28451252f32,
+            -456.55612f32,
+            11.757321f32,
+        );
+
+        bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_3), "steve")
             .write(&mut writer)
             .unwrap();
 
@@ -221,11 +260,8 @@ extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize) -> bool {
 
 extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_4.iter().position(|&x| x == hash) {
-        let skin_path = SELECTED_SKINS[slot].lock();
-        let skin_path: Option<&Path> = skin_path.as_deref();
-
-        let skin_data = if let Some(path) = skin_path {
-            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
+        let output = if let Some(render) = get_render(slot) {
+            render
         } else {
             return false
         };
@@ -233,9 +269,19 @@ extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize) -> bool {
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
         let mut writer = std::io::Cursor::new(data_out);
 
-        let chara_4 = red(162, 162);
+        let chara_4_mask = image::load_from_memory_with_format(CHARA_4_MASK, image::ImageFormat::Png)
+            .unwrap()
+            .into_rgba();
 
-        bntx::BntxFile::from_image(chara_4, "steve")
+        let chara_4 = minecraft_render::create_chara_image(
+            &output,
+            &chara_4_mask,
+            0.232882008f32,
+            -90.16959f32,
+            9.084564f32,
+        );
+
+        bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_4), "steve")
             .write(&mut writer)
             .unwrap();
 
@@ -247,11 +293,8 @@ extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize) -> bool {
 
 extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_6.iter().position(|&x| x == hash) {
-        let skin_path = SELECTED_SKINS[slot].lock();
-        let skin_path: Option<&Path> = skin_path.as_deref();
-
-        let skin_data = if let Some(path) = skin_path {
-            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
+        let output = if let Some(render) = get_render(slot) {
+            render
         } else {
             return false
         };
@@ -259,9 +302,19 @@ extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) -> bool {
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
         let mut writer = std::io::Cursor::new(data_out);
 
-        let chara_6 = red(512, 256);
+        let chara_6_mask = image::load_from_memory_with_format(CHARA_6_MASK, image::ImageFormat::Png)
+            .unwrap()
+            .into_rgba();
 
-        bntx::BntxFile::from_image(chara_6, "steve")
+        let chara_6 = minecraft_render::create_chara_image(
+            &output,
+            &chara_6_mask,
+            0.938028f32,
+            -480.87906f32,
+            -96.13269f32,
+        );
+
+        bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_6), "steve")
             .write(&mut writer)
             .unwrap();
 
