@@ -1,8 +1,5 @@
 use skyline::libc::c_void;
 use skyline::libc::free;
-use skyline::libc::c_char;
-
-use std::ffi::CString;
 
 #[repr(C)]
 pub struct ShowKeyboardArg {
@@ -42,9 +39,6 @@ extern "C" {
     //#[link_name = "_ZN2nn5swkbd17SetHeaderTextUtf8EPNS0_14KeyboardConfigEPKc"]
     #[link_name = "_ZN2nn5swkbd13SetHeaderTextEPNS0_14KeyboardConfigEPKDs"]
     fn set_header_text(x: *const [u8; 0x4d0], text: *const u16);
-
-    #[link_name = "_ZN2nn5swkbd12SetGuideTextEPNS0_14KeyboardConfigEPKDs"]
-    fn set_guide_text(x: *const [u8; 0x4d0], text: *const u16);
 }
 
 impl ShowKeyboardArg {
@@ -71,18 +65,6 @@ impl ShowKeyboardArg {
         arg.work_buffer_size = work_buffer_size;
         
         arg
-    }
-
-    pub fn guide_text(&mut self, s: &str) -> &mut Self {
-        let x: Vec<u16> = s.encode_utf16().chain(std::iter::once(0)).collect();
-
-        unsafe {
-            set_guide_text(&self.keyboard_config, x.as_ptr() as _);
-        }
-
-        std::mem::drop(x);
-
-        self
     }
 
     pub fn header_text(&mut self, s: &str) -> &mut Self {
