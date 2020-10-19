@@ -12,10 +12,12 @@ use smash::lib::lua_const::FIGHTER_KIND_PICKEL;
 
 mod keyboard;
 mod skin_menu;
+mod skin_files;
 mod modern_skin;
 mod minecraft_api;
 mod stock_generation;
 
+use skin_files::*;
 use modern_skin::convert_to_modern_skin;
 
 lazy_static::lazy_static! {
@@ -23,28 +25,6 @@ lazy_static::lazy_static! {
         skin_menu::Skins::from_cache().unwrap_or_default()
     );
 }
-
-static STEVE_NUTEXB_FILES: [u64; 8] = [
-    smash::hash40("fighter/pickel/model/body/c00/def_pickel_001_col.nutexb"),
-    smash::hash40("fighter/pickel/model/body/c01/def_pickel_001_col.nutexb"),
-    smash::hash40("fighter/pickel/model/body/c02/def_pickel_001_col.nutexb"),
-    smash::hash40("fighter/pickel/model/body/c03/def_pickel_001_col.nutexb"),
-    smash::hash40("fighter/pickel/model/body/c04/def_pickel_001_col.nutexb"),
-    smash::hash40("fighter/pickel/model/body/c05/def_pickel_001_col.nutexb"),
-    smash::hash40("fighter/pickel/model/body/c06/def_pickel_001_col.nutexb"),
-    smash::hash40("fighter/pickel/model/body/c07/def_pickel_001_col.nutexb"),
-];
-
-static STEVE_STOCK_ICONS: [u64; 8] = [
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_00.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_01.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_02.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_03.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_04.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_05.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_06.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_07.bntx"),
-];
 
 static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
     parking_lot::const_mutex(None),
@@ -201,6 +181,95 @@ fn css_fighter_selected(ctx: &InlineCtx) {
 }
 
 const MAX_STOCK_ICON_SIZE: u32 = 0x9c68;
+const MAX_CHARA_3_SIZE: u32 = 0x727068;
+const MAX_CHARA_4_SIZE: u32 = 0x2d068;
+const MAX_CHARA_6_SIZE: u32 = 0x81068;
+
+fn red(width: u32, height: u32) -> image::DynamicImage {
+    DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+        width,
+        height,
+        image::Rgba::from([0xFFu8, 0, 0, 0xFF])
+    ))
+}
+
+extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+    if let Some(slot) = STEVE_CHARA_3.iter().position(|&x| x == hash) {
+        let skin_path = SELECTED_SKINS[slot].lock();
+        let skin_path: Option<&Path> = skin_path.as_deref();
+
+        let skin_data = if let Some(path) = skin_path {
+            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
+        } else {
+            return false
+        };
+        
+        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
+        let mut writer = std::io::Cursor::new(data_out);
+
+        let chara_3 = red(968, 1864);
+
+        bntx::BntxFile::from_image(chara_3, "steve")
+            .write(&mut writer)
+            .unwrap();
+
+        true
+    } else {
+        false
+    }
+}
+
+extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+    if let Some(slot) = STEVE_CHARA_4.iter().position(|&x| x == hash) {
+        let skin_path = SELECTED_SKINS[slot].lock();
+        let skin_path: Option<&Path> = skin_path.as_deref();
+
+        let skin_data = if let Some(path) = skin_path {
+            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
+        } else {
+            return false
+        };
+        
+        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
+        let mut writer = std::io::Cursor::new(data_out);
+
+        let chara_4 = red(162, 162);
+
+        bntx::BntxFile::from_image(chara_4, "steve")
+            .write(&mut writer)
+            .unwrap();
+
+        true
+    } else {
+        false
+    }
+}
+
+extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+    if let Some(slot) = STEVE_CHARA_6.iter().position(|&x| x == hash) {
+        let skin_path = SELECTED_SKINS[slot].lock();
+        let skin_path: Option<&Path> = skin_path.as_deref();
+
+        let skin_data = if let Some(path) = skin_path {
+            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
+        } else {
+            return false
+        };
+        
+        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
+        let mut writer = std::io::Cursor::new(data_out);
+
+        let chara_6 = red(512, 256);
+
+        bntx::BntxFile::from_image(chara_6, "steve")
+            .write(&mut writer)
+            .unwrap();
+
+        true
+    } else {
+        false
+    }
+}
 
 #[skyline::main(name = "minecraft_skins")]
 pub fn main() {
@@ -213,6 +282,18 @@ pub fn main() {
 
         for hash in &STEVE_STOCK_ICONS {
             subscribe_callback_with_size(*hash, MAX_STOCK_ICON_SIZE as _, "bntx".as_ptr(), "bntx".len(), steve_stock_callback);
+        }
+
+        for hash in &STEVE_CHARA_3 {
+            subscribe_callback_with_size(*hash, MAX_CHARA_3_SIZE as _, "bntx".as_ptr(), "bntx".len(), chara_3_callback);
+        }
+
+        for hash in &STEVE_CHARA_4 {
+            subscribe_callback_with_size(*hash, MAX_CHARA_4_SIZE as _, "bntx".as_ptr(), "bntx".len(), chara_4_callback);
+        }
+
+        for hash in &STEVE_CHARA_6 {
+            subscribe_callback_with_size(*hash, MAX_CHARA_6_SIZE as _, "bntx".as_ptr(), "bntx".len(), chara_6_callback);
         }
     }
 }
