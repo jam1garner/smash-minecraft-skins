@@ -23,8 +23,7 @@ serde_json = "1"
 parking_lot = "0.11.0"
 
 nutexb = { git = "https://github.com/jam1garner/nutexb" }
-#bntx = { git = "https://github.com/jam1garner/bntx", branch = "main" }
-bntx = { path = "../bntx" }
+bntx = { git = "https://github.com/jam1garner/bntx", branch = "main" }
 image = "0.23.10"
 percent-encoding = "2.1.0"
 color-thief = "0.2.1"
