@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::Mutex;
 use image::{Pixel, DynamicImage};
@@ -153,7 +153,7 @@ extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize) -> boo
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
         let mut writer = std::io::Cursor::new(data_out);
 
-        bntx::BntxFile::from_image(DynamicImage::ImageRgba8(skin), "steve")
+        bntx::BntxFile::from_image(DynamicImage::ImageRgba8(stock_icon), "steve")
             .write(&mut writer)
             .unwrap();
 
@@ -211,8 +211,8 @@ pub fn main() {
             subscribe_callback_with_size(*hash, MAX_FILE_SIZE as _, "nutexb".as_ptr(), "nutexb".len(), steve_callback);
         }
 
-        /*for hash in &STEVE_STOCK_ICONS {
+        for hash in &STEVE_STOCK_ICONS {
             subscribe_callback_with_size(*hash, MAX_STOCK_ICON_SIZE as _, "bntx".as_ptr(), "bntx".len(), steve_stock_callback);
-        }*/
+        }
     }
 }
