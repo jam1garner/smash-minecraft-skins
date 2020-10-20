@@ -220,8 +220,8 @@ fn css_fighter_selected(ctx: &InlineCtx) {
         };
         
         color_correct(&mut skin_data);
-        
-        *render = Some(minecraft_render::create_render(&skin_data));
+
+        *render = Some(minecraft_render::create_render(&convert_to_modern_skin(&skin_data)));
     }
 }
 
