@@ -80,11 +80,33 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
+        
+        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
+        let mut writer = std::io::Cursor::new(data_out);
 
         let skin_data = if let Some(path) = skin_path {
             image::load_from_memory(&fs::read(path).unwrap()).unwrap()
         } else {
-            return false
+            // load skin for arcrop, temp fix, TODO: change back to "return false" after arcrop works
+            let data = match fs::read(Path::new("sd:/ultimate/mods/minecraft_2_layer").join(STEVE_NUTEXB_FILES_STR[slot])) {
+                Ok(data) => data,
+                Err(_) => return false,
+            };
+            
+            use std::io::Write;
+
+            let real_size = data.len();
+
+            writer.write_all(&data).unwrap();
+            let data_out = writer.into_inner();
+            if real_size != MAX_FILE_SIZE {
+                let start_of_header = real_size - 0xb0;
+
+                let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
+                to.copy_from_slice(&from[start_of_header..real_size]);
+            }
+
+            return true
         };
 
         let mut skin_data = skin_data.to_rgba();
@@ -100,8 +122,6 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
 
         let real_size = (skin_data.height() as usize * skin_data.width() as usize * 4) + 0xb0;
 
-        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
-        let mut writer = std::io::Cursor::new(data_out);
         nutexb::writer::write_nutexb("steve_minecraft???", &DynamicImage::ImageRgba8(skin_data), &mut writer).unwrap();
 
         let data_out = writer.into_inner();
