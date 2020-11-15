@@ -196,7 +196,7 @@ pub struct FighterInfo {
     fighter_slot: u8,
 }
 
-#[skyline::hook(offset = 0x661f88, inline)]
+#[skyline::hook(offset = 0x66267c, inline)]
 fn css_fighter_selected(ctx: &InlineCtx) {
     let infos = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfo) };
 
