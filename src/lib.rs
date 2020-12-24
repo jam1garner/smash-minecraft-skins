@@ -7,7 +7,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use parking_lot::Mutex;
 use image::DynamicImage;
 
-use skyline::hooks::InlineCtx;
+use skyline::hooks::{
+    getRegionAddress,
+    Region,
+    InlineCtx
+};
 use smash::lib::lua_const::FIGHTER_KIND_PICKEL;
 
 mod keyboard;
