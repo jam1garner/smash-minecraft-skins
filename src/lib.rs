@@ -350,7 +350,11 @@ extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     }
 }
 
-pub fn search_offsets() {
+fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|window| window == needle)
+}
+
+fn search_offsets() {
     unsafe {
         let text_ptr = getRegionAddress(Region::Text) as *const u8;
         let text_size = (getRegionAddress(Region::Rodata) as usize) - (text_ptr as usize);
