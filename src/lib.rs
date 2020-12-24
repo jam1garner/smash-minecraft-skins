@@ -29,6 +29,12 @@ lazy_static::lazy_static! {
     );
 }
 
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66267c;
+
+static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
+    0xc8, 0x66, 0x40, 0xb9, 0x08, 0x01, 0x00, 0x32, 0xe0, 0x03, 0x17, 0xaa, 0xc8, 0x66, 0x00, 0xb9,
+];
+
 static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
     parking_lot::const_mutex(None),
     parking_lot::const_mutex(None),
@@ -196,7 +202,7 @@ pub struct FighterInfo {
     fighter_slot: u8,
 }
 
-#[skyline::hook(offset = 0x66267c, inline)]
+#[skyline::hook(offset = FIGHTER_SELECTED_OFFSET, inline)]
 fn css_fighter_selected(ctx: &InlineCtx) {
     let infos = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfo) };
 
@@ -344,8 +350,24 @@ extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) -> bool {
     }
 }
 
+pub fn search_offsets() {
+    unsafe {
+        let text_ptr = getRegionAddress(Region::Text) as *const u8;
+        let text_size = (getRegionAddress(Region::Rodata) as usize) - (text_ptr as usize);
+
+        let text = std::slice::from_raw_parts(text_ptr, text_size);
+
+        if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
+            FIGHTER_SELECTED_OFFSET = offset + 0x10;
+        } else {
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 9.0.2 offset. This likely won't work.");
+        }
+    }
+}
+
 #[skyline::main(name = "minecraft_skins")]
 pub fn main() {
+    search_offsets();
     skyline::install_hooks!(prepo_add_play_report_hook, css_fighter_selected);
 
     unsafe {
