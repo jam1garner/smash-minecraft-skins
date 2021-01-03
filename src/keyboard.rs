@@ -4,7 +4,7 @@ use skyline::libc::free;
 #[repr(C)]
 pub struct ShowKeyboardArg {
     pub keyboard_config: [u8; 0x4D0],
-    pub work_buffer: *const c_void,
+    pub work_buffer: *mut c_void,
     pub work_buffer_size: usize,
     pub text_buffer: *const c_void,
     pub text_buffer_size: usize,
@@ -59,7 +59,7 @@ impl ShowKeyboardArg {
 
         let work_buffer_size = 0xd000;
         let work_buffer: Box<[u8; 0xd000]> = unsafe { Box::new_zeroed().assume_init() };
-        let work_buffer = Box::leak(work_buffer) as *const _ as *const c_void;
+        let work_buffer = Box::leak(work_buffer) as *mut _ as *mut c_void;
 
         arg.work_buffer = work_buffer;
         arg.work_buffer_size = work_buffer_size;
