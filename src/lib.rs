@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use parking_lot::Mutex;
 use image::DynamicImage;
 
+use arcropolis_api::{register_callback, load_original_file};
+
 use skyline::hooks::{
     getRegionAddress,
     Region,
@@ -33,10 +35,13 @@ lazy_static::lazy_static! {
     );
 }
 
-static mut FIGHTER_SELECTED_OFFSET: usize = 0x66267c;
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x6695e0;
 
 static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
-    0xc8, 0x66, 0x40, 0xb9, 0x08, 0x01, 0x00, 0x32, 0xe0, 0x03, 0x17, 0xaa, 0xc8, 0x66, 0x00, 0xb9,
+    0xc8, 0x66, 0x40, 0xb9,
+    0x08, 0x01, 0x00, 0x32,
+    0xe0, 0x03, 0x17, 0xaa,
+    0xa8, 0x66, 0x00, 0xb9,
 ];
 
 static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
@@ -75,18 +80,14 @@ fn prepo_add_play_report_hook(a: u64, b: u64, c: u64) -> u64 {
     original!()(a, b, c)
 }
 
-type ArcCallback = extern "C" fn(u64, *mut u8, usize) -> bool;
-
-extern "C" {
-    fn subscribe_callback_with_size(hash: u64, filesize: u32, extension: *const u8, extension_len: usize, callback: ArcCallback);
-}
+type ArcCallback = extern "C" fn(u64, *mut u8, usize);
 
 const MAX_HEIGHT: usize = 1024;
 const MAX_WIDTH: usize = 1024;
 const MAX_DATA_SIZE: usize = MAX_HEIGHT * MAX_WIDTH * 4;
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
 
-extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
@@ -100,7 +101,11 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
             // load skin for arcrop, temp fix, TODO: change back to "return false" after arcrop works
             let data = match fs::read(Path::new("sd:/ultimate/mods/minecraft_2_layer").join(STEVE_NUTEXB_FILES_STR[slot])) {
                 Ok(data) => data,
-                Err(_) => return false,
+                Err(_) => {
+                    let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+                    load_original_file(hash, out_buffer);
+                    return;
+                },
             };
             
             use std::io::Write;
@@ -115,8 +120,7 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
                 let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
                 to.copy_from_slice(&from[start_of_header..real_size]);
             }
-
-            return true
+            return;
         };
 
         let mut skin_data = skin_data.to_rgba();
@@ -142,14 +146,13 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize) -> bool {
             let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
             to.copy_from_slice(&from[start_of_header..real_size]);
         }
-
-        true
     } else {
-        false
+        let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+        load_original_file(hash, out_buffer);
     }
 }
 
-extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize) {
     if let Some(slot) = STEVE_STOCK_ICONS.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
@@ -157,7 +160,9 @@ extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize) -> boo
         let skin_data = if let Some(path) = skin_path {
             image::load_from_memory(&fs::read(path).unwrap()).unwrap()
         } else {
-            return false
+            let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+            load_original_file(hash, out_buffer);
+            return
         };
 
         let skin = skin_data.to_rgba();
@@ -175,10 +180,9 @@ extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize) -> boo
         bntx::BntxFile::from_image(DynamicImage::ImageRgba8(stock_icon), "steve")
             .write(&mut writer)
             .unwrap();
-
-        true
     } else {
-        false
+        let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+        load_original_file(hash, out_buffer);
     }
 }
 
@@ -255,12 +259,14 @@ fn get_render<'a>(slot: usize) -> Option<MappedMutexGuard<'a, image::RgbaImage>>
     }
 }
 
-extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize) {
     if let Some(slot) = STEVE_CHARA_3.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
         } else {
-            return false
+            let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+            load_original_file(hash, out_buffer);
+            return;
         };
 
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
@@ -281,19 +287,20 @@ extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize) -> bool {
         bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_3), "steve")
             .write(&mut writer)
             .unwrap();
-
-        true
     } else {
-        false
+        let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+        load_original_file(hash, out_buffer)
     }
 }
 
-extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize) {
     if let Some(slot) = STEVE_CHARA_4.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
         } else {
-            return false
+            let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+            load_original_file(hash, out_buffer);
+            return
         };
         
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
@@ -314,19 +321,20 @@ extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize) -> bool {
         bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_4), "steve")
             .write(&mut writer)
             .unwrap();
-
-        true
     } else {
-        false
+        let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+        load_original_file(hash, out_buffer)
     }
 }
 
-extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) {
     if let Some(slot) = STEVE_CHARA_6.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
         } else {
-            return false
+            let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+            load_original_file(hash, out_buffer);
+            return
         };
         
         let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
@@ -347,15 +355,18 @@ extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize) -> bool {
         bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_6), "steve")
             .write(&mut writer)
             .unwrap();
-
-        true
     } else {
-        false
+        let out_buffer = unsafe { core::slice::from_raw_parts_mut(data, size) };
+        load_original_file(hash, out_buffer)
     }
 }
 
+const SKIP_IDX: usize = 0xC;
+
 fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|window| window == needle)
+    haystack.windows(needle.len()).position(|window| {
+        &window[..SKIP_IDX] == &needle[..SKIP_IDX] && &window[SKIP_IDX+1..] == &needle[SKIP_IDX+1..] 
+    })
 }
 
 fn search_offsets() {
@@ -368,7 +379,7 @@ fn search_offsets() {
         if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
             FIGHTER_SELECTED_OFFSET = offset + 0x10;
         } else {
-            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 9.0.2 offset. This likely won't work.");
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 11.0.1 offset. This likely won't work.");
         }
     }
 }
@@ -380,23 +391,23 @@ pub fn main() {
 
     unsafe {
         for hash in &STEVE_NUTEXB_FILES {
-            subscribe_callback_with_size(*hash, MAX_FILE_SIZE as _, "nutexb".as_ptr(), "nutexb".len(), steve_callback);
+            register_callback(*hash, MAX_FILE_SIZE as _, steve_callback);
         }
 
         for hash in &STEVE_STOCK_ICONS {
-            subscribe_callback_with_size(*hash, MAX_STOCK_ICON_SIZE as _, "bntx".as_ptr(), "bntx".len(), steve_stock_callback);
+            register_callback(*hash, MAX_STOCK_ICON_SIZE as _, steve_stock_callback);
         }
 
         for hash in &STEVE_CHARA_3 {
-            subscribe_callback_with_size(*hash, MAX_CHARA_3_SIZE as _, "bntx".as_ptr(), "bntx".len(), chara_3_callback);
+            register_callback(*hash, MAX_CHARA_3_SIZE as _, chara_3_callback);
         }
 
         for hash in &STEVE_CHARA_4 {
-            subscribe_callback_with_size(*hash, MAX_CHARA_4_SIZE as _, "bntx".as_ptr(), "bntx".len(), chara_4_callback);
+            register_callback(*hash, MAX_CHARA_4_SIZE as _, chara_4_callback);
         }
 
         for hash in &STEVE_CHARA_6 {
-            subscribe_callback_with_size(*hash, MAX_CHARA_6_SIZE as _, "bntx".as_ptr(), "bntx".len(), chara_6_callback);
+            register_callback(*hash, MAX_CHARA_6_SIZE as _, chara_6_callback);
         }
     }
 }
