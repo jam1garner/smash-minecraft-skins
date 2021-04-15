@@ -231,18 +231,21 @@ fn css_fighter_selected(ctx: &InlineCtx) {
         *SELECTED_SKINS[slot].lock() = path.clone();
 
         let mut render = RENDERS[slot].lock();
-        let mut skin_data = if let Some(path) = path {
-            image::load_from_memory(&fs::read(path).unwrap())
-                .unwrap()
-                .into_rgba8()
-        } else {
-            *render = None;
-            return
-        };
-        
-        color_correct(&mut skin_data);
 
-        *render = Some(minecraft_render::create_render(&convert_to_modern_skin(&skin_data)));
+        #[cfg(feature = "renders")] {
+            let mut skin_data = if let Some(path) = path {
+                image::load_from_memory(&fs::read(path).unwrap())
+                    .unwrap()
+                    .into_rgba8()
+            } else {
+                *render = None;
+                return
+            };
+            
+            color_correct(&mut skin_data);
+
+            *render = Some(minecraft_render::create_render(&convert_to_modern_skin(&skin_data)));
+        }
     }
 }
 
@@ -266,6 +269,7 @@ fn get_render<'a>(slot: usize) -> Option<MappedMutexGuard<'a, image::RgbaImage>>
     }
 }
 
+#[cfg(feature = "renders")] 
 extern "C" fn chara_3_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_3.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
@@ -303,6 +307,7 @@ extern "C" fn chara_3_callback(out_size: *mut usize, hash: u64, data: *mut u8, s
     }
 }
 
+#[cfg(feature = "renders")] 
 extern "C" fn chara_4_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_4.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
@@ -340,6 +345,7 @@ extern "C" fn chara_4_callback(out_size: *mut usize, hash: u64, data: *mut u8, s
     }
 }
 
+#[cfg(feature = "renders")] 
 extern "C" fn chara_6_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_6.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
@@ -414,16 +420,18 @@ pub fn main() {
             register_callback(*hash, MAX_STOCK_ICON_SIZE as _, steve_stock_callback);
         }
 
-        for hash in &STEVE_CHARA_3 {
-            register_callback(*hash, MAX_CHARA_3_SIZE as _, chara_3_callback);
-        }
+        #[cfg(feature = "renders")] {
+            for hash in &STEVE_CHARA_3 {
+                register_callback(*hash, MAX_CHARA_3_SIZE as _, chara_3_callback);
+            }
 
-        for hash in &STEVE_CHARA_4 {
-            register_callback(*hash, MAX_CHARA_4_SIZE as _, chara_4_callback);
-        }
+            for hash in &STEVE_CHARA_4 {
+                register_callback(*hash, MAX_CHARA_4_SIZE as _, chara_4_callback);
+            }
 
-        for hash in &STEVE_CHARA_6 {
-            register_callback(*hash, MAX_CHARA_6_SIZE as _, chara_6_callback);
+            for hash in &STEVE_CHARA_6 {
+                register_callback(*hash, MAX_CHARA_6_SIZE as _, chara_6_callback);
+            }
         }
     }
 }
