@@ -209,7 +209,7 @@ fn fix_png(path: &Path) -> Option<Vec<u8>> {
         let img = fs::read(path).ok()?;
         let image = image::load_from_memory_with_format(&img, image::ImageFormat::Png).ok()?;
         let mut image_buffer = Vec::with_capacity(img.len());
-        DynamicImage::ImageRgba8(convert_to_modern_skin(&image.to_rgba())) 
+        DynamicImage::ImageRgba8(convert_to_modern_skin(&image.to_rgba8())) 
             .write_to(&mut image_buffer, image::ImageFormat::Png)
             .ok()?;
 

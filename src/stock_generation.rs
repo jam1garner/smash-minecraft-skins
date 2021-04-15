@@ -23,7 +23,7 @@ pub fn gen_stock_image(img: &image::RgbaImage) -> image::RgbaImage {
     let mut outline = image::load_from_memory_with_format(
         include_bytes!("stock_outline.png"),
         ImageFormat::Png
-    ).unwrap().into_rgba();
+    ).unwrap().into_rgba8();
 
     let buf = face.as_raw();
     let pallete = get_palette(buf, ColorFormat::Rgba, 10, 4).unwrap();
