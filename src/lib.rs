@@ -109,16 +109,16 @@ extern "C" fn steve_callback(out_size: *mut usize, hash: u64, data: *mut u8, siz
             let real_size = data.len();
 
             writer.write_all(&data).unwrap();
-            unsafe {
-                *out_size = data.len();
-            }
-            //let data_out = writer.into_inner();
-            //if real_size != MAX_FILE_SIZE {
-            //    let start_of_header = real_size - 0xb0;
+            let data_out = writer.into_inner();
+            if real_size != MAX_FILE_SIZE {
+                let start_of_header = real_size - 0xb0;
 
-            //    let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
-            //    to.copy_from_slice(&from[start_of_header..real_size]);
-            //}
+                let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
+                to.copy_from_slice(&from[start_of_header..real_size]);
+            }
+            unsafe {
+                *out_size = MAX_FILE_SIZE;
+            }
             return true;
         };
 
@@ -137,18 +137,18 @@ extern "C" fn steve_callback(out_size: *mut usize, hash: u64, data: *mut u8, siz
 
         nutexb::writer::write_nutexb("steve_minecraft???", &DynamicImage::ImageRgba8(skin_data), &mut writer).unwrap();
 
-        unsafe {
-            *out_size = writer.position() as usize;
+        let data_out = writer.into_inner();
+
+        if real_size != MAX_FILE_SIZE {
+            let start_of_header = real_size - 0xb0;
+
+            let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
+            to.copy_from_slice(&from[start_of_header..real_size]);
         }
 
-        //let data_out = writer.into_inner();
-
-        //if real_size != MAX_FILE_SIZE {
-        //    let start_of_header = real_size - 0xb0;
-
-        //    let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
-        //    to.copy_from_slice(&from[start_of_header..real_size]);
-        //}
+        unsafe {
+            *out_size = MAX_FILE_SIZE;
+        }
 
         true
     } else {

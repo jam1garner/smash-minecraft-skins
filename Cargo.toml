@@ -14,11 +14,11 @@ crate-type = ["cdylib"]
 skyline = { git = "https://github.com/ultimate-research/skyline-rs.git" }
 skyline_smash = { git = "https://github.com/ultimate-research/skyline-smash.git" }
 skyline-web = { git = "https://github.com/skyline-rs/skyline-web" }
-ramhorns = "0.10.0"
+ramhorns = "=0.10.0"
 lazy_static = "1.4.0"
-minreq = { version = "2.2.1", features = ["https", "json-using-serde"] }
+minreq = { version = "=2.2.1", features = ["https", "json-using-serde"] }
 serde = { version = "1", features = ["derive"] }
-base64 = "0.13.0"
+base64 = "=0.13.0"
 serde_json = "1"
 parking_lot = "0.11.0"
 
@@ -27,7 +27,7 @@ arcropolis-api = { git = "https://github.com/Raytwo/arcropolis_api", branch = "m
 nutexb = { git = "https://github.com/jam1garner/nutexb" }
 bntx = { git = "https://github.com/jam1garner/bntx", branch = "main" }
 image = "0.23.10"
-percent-encoding = "2.1.0"
+percent-encoding = "=2.1.0"
 color-thief = "0.2.1"
 ordered-float = "2.0.0"
 

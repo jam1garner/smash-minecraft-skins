@@ -169,7 +169,8 @@ impl Skins {
             .into_bytes();
 
         let path = Path::new(CACHE_DIR).join(format!("{}.png", username));
-        fs::write(&path, &png).ok()?;
+        fs::write(&path, &png)
+            .ok()?;
 
         self.skins.push(format!("{}.png", username));
         self.skin_files.push(path.clone());
