@@ -80,14 +80,12 @@ fn prepo_add_play_report_hook(a: u64, b: u64, c: u64) -> u64 {
     original!()(a, b, c)
 }
 
-type ArcCallback = extern "C" fn(u64, *mut u8, usize);
-
 const MAX_HEIGHT: usize = 1024;
 const MAX_WIDTH: usize = 1024;
 const MAX_DATA_SIZE: usize = MAX_HEIGHT * MAX_WIDTH * 4;
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
 
-extern "C" fn steve_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn steve_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
@@ -116,9 +114,8 @@ extern "C" fn steve_callback(out_size: *mut usize, hash: u64, data: *mut u8, siz
                 let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
                 to.copy_from_slice(&from[start_of_header..real_size]);
             }
-            unsafe {
-                *out_size = MAX_FILE_SIZE;
-            }
+
+            *out_size = MAX_FILE_SIZE;
             return true;
         };
 
@@ -146,9 +143,7 @@ extern "C" fn steve_callback(out_size: *mut usize, hash: u64, data: *mut u8, siz
             to.copy_from_slice(&from[start_of_header..real_size]);
         }
 
-        unsafe {
-            *out_size = MAX_FILE_SIZE;
-        }
+        *out_size = MAX_FILE_SIZE;
 
         true
     } else {
@@ -156,7 +151,7 @@ extern "C" fn steve_callback(out_size: *mut usize, hash: u64, data: *mut u8, siz
     }
 }
 
-extern "C" fn steve_stock_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn steve_stock_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_STOCK_ICONS.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
@@ -183,9 +178,7 @@ extern "C" fn steve_stock_callback(out_size: *mut usize, hash: u64, data: *mut u
             .write(&mut writer)
             .unwrap();
 
-        unsafe {
-            *out_size = writer.position() as usize;
-        }
+        *out_size = writer.position() as usize;
 
         true
     } else {
@@ -270,7 +263,9 @@ fn get_render<'a>(slot: usize) -> Option<MappedMutexGuard<'a, image::RgbaImage>>
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_3_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_3_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+    let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
+
     if let Some(slot) = STEVE_CHARA_3.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
@@ -278,7 +273,6 @@ extern "C" fn chara_3_callback(out_size: *mut usize, hash: u64, data: *mut u8, s
             return false
         };
 
-        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
         let mut writer = std::io::Cursor::new(data_out);
 
         let chara_3_mask = image::load_from_memory_with_format(CHARA_3_MASK, image::ImageFormat::Png)
@@ -297,18 +291,18 @@ extern "C" fn chara_3_callback(out_size: *mut usize, hash: u64, data: *mut u8, s
             .write(&mut writer)
             .unwrap();
 
-        unsafe {
-            *out_size = writer.position() as usize;
-        }
-
-        true
+        *out_size = writer.position() as usize;
     } else {
-        false
+        let size = load_original_file(hash, data_out);
+
+        *out_size = size;
     }
+
+    true
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_4_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_4_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_4.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
@@ -335,9 +329,7 @@ extern "C" fn chara_4_callback(out_size: *mut usize, hash: u64, data: *mut u8, s
             .write(&mut writer)
             .unwrap();
 
-        unsafe {
-            *out_size = writer.position() as usize;
-        }
+        *out_size = writer.position() as usize;
 
         true
     } else {
@@ -346,7 +338,7 @@ extern "C" fn chara_4_callback(out_size: *mut usize, hash: u64, data: *mut u8, s
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_6_callback(out_size: *mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_6_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
     if let Some(slot) = STEVE_CHARA_6.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
@@ -373,9 +365,7 @@ extern "C" fn chara_6_callback(out_size: *mut usize, hash: u64, data: *mut u8, s
             .write(&mut writer)
             .unwrap();
 
-        unsafe {
-            *out_size = writer.position() as usize;
-        }
+        *out_size = writer.position() as usize;
 
         true
     } else {
@@ -411,27 +401,25 @@ pub fn main() {
     search_offsets();
     skyline::install_hooks!(prepo_add_play_report_hook, css_fighter_selected);
 
-    unsafe {
-        for hash in &STEVE_NUTEXB_FILES {
-            register_callback(*hash, MAX_FILE_SIZE as _, steve_callback);
+    for hash in &STEVE_NUTEXB_FILES {
+        register_callback(*hash, MAX_FILE_SIZE as _, steve_callback);
+    }
+
+    for hash in &STEVE_STOCK_ICONS {
+        register_callback(*hash, MAX_STOCK_ICON_SIZE as _, steve_stock_callback);
+    }
+
+    #[cfg(feature = "renders")] {
+        for hash in &STEVE_CHARA_3 {
+            register_callback(*hash, MAX_CHARA_3_SIZE as _, chara_3_callback);
         }
 
-        for hash in &STEVE_STOCK_ICONS {
-            register_callback(*hash, MAX_STOCK_ICON_SIZE as _, steve_stock_callback);
+        for hash in &STEVE_CHARA_4 {
+            register_callback(*hash, MAX_CHARA_4_SIZE as _, chara_4_callback);
         }
 
-        #[cfg(feature = "renders")] {
-            for hash in &STEVE_CHARA_3 {
-                register_callback(*hash, MAX_CHARA_3_SIZE as _, chara_3_callback);
-            }
-
-            for hash in &STEVE_CHARA_4 {
-                register_callback(*hash, MAX_CHARA_4_SIZE as _, chara_4_callback);
-            }
-
-            for hash in &STEVE_CHARA_6 {
-                register_callback(*hash, MAX_CHARA_6_SIZE as _, chara_6_callback);
-            }
+        for hash in &STEVE_CHARA_6 {
+            register_callback(*hash, MAX_CHARA_6_SIZE as _, chara_6_callback);
         }
     }
 }
