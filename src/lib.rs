@@ -85,7 +85,7 @@ const MAX_WIDTH: usize = 1024;
 const MAX_DATA_SIZE: usize = MAX_HEIGHT * MAX_WIDTH * 4;
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
 
-extern "C" fn steve_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
@@ -151,7 +151,7 @@ extern "C" fn steve_callback(out_size: &mut usize, hash: u64, data: *mut u8, siz
     }
 }
 
-extern "C" fn steve_stock_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
     if let Some(slot) = STEVE_STOCK_ICONS.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
@@ -263,7 +263,7 @@ fn get_render<'a>(slot: usize) -> Option<MappedMutexGuard<'a, image::RgbaImage>>
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_3_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
     let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
 
     if let Some(slot) = STEVE_CHARA_3.iter().position(|&x| x == hash) {
@@ -302,7 +302,7 @@ extern "C" fn chara_3_callback(out_size: &mut usize, hash: u64, data: *mut u8, s
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_4_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
     if let Some(slot) = STEVE_CHARA_4.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
@@ -338,7 +338,7 @@ extern "C" fn chara_4_callback(out_size: &mut usize, hash: u64, data: *mut u8, s
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_6_callback(out_size: &mut usize, hash: u64, data: *mut u8, size: usize) -> bool {
+extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
     if let Some(slot) = STEVE_CHARA_6.iter().position(|&x| x == hash) {
         let output = if let Some(render) = get_render(slot) {
             render
