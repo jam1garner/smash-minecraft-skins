@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use parking_lot::Mutex;
 use image::DynamicImage;
 
-use arcropolis_api::{register_callback, load_original_file};
+use arcropolis_api::{arc_callback, load_original_file};
 
 use skyline::hooks::{
     getRegionAddress,
@@ -85,22 +85,22 @@ const MAX_WIDTH: usize = 1024;
 const MAX_DATA_SIZE: usize = MAX_HEIGHT * MAX_WIDTH * 4;
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
 
-extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
+#[arc_callback]
+fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
         
-        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
-        let mut writer = std::io::Cursor::new(data_out);
+        let mut writer = std::io::Cursor::new(data);
 
         let skin_data = if let Some(path) = skin_path {
             image::load_from_memory(&fs::read(path).unwrap()).unwrap()
         } else {
             // load skin for arcrop, temp fix, TODO: change back to "return false" after arcrop works
-            let data = match fs::read(Path::new("sd:/ultimate/mods/minecraft_2_layer").join(STEVE_NUTEXB_FILES_STR[slot])) {
-                Ok(data) => data,
-                Err(_) => return false,
-            };
+            let data = fs::read(
+                Path::new("sd:/ultimate/mods/minecraft_2_layer")
+                    .join(STEVE_NUTEXB_FILES_STR[slot])
+            ).ok()?;
             
             use std::io::Write;
 
@@ -115,8 +115,7 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize, out_size: &m
                 to.copy_from_slice(&from[start_of_header..real_size]);
             }
 
-            *out_size = MAX_FILE_SIZE;
-            return true;
+            return Some(MAX_FILE_SIZE);
         };
 
         let mut skin_data = skin_data.to_rgba8();
@@ -143,24 +142,21 @@ extern "C" fn steve_callback(hash: u64, data: *mut u8, size: usize, out_size: &m
             to.copy_from_slice(&from[start_of_header..real_size]);
         }
 
-        *out_size = MAX_FILE_SIZE;
-
-        true
+        Some(MAX_FILE_SIZE)
     } else {
-        false
+        None
     }
 }
 
-extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
+#[arc_callback]
+fn steve_stock_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     if let Some(slot) = STEVE_STOCK_ICONS.iter().position(|&x| x == hash) {
         let skin_path = SELECTED_SKINS[slot].lock();
         let skin_path: Option<&Path> = skin_path.as_deref();
 
-        let skin_data = if let Some(path) = skin_path {
-            image::load_from_memory(&fs::read(path).unwrap()).unwrap()
-        } else {
-            return false
-        };
+        let skin_data = image::load_from_memory(
+            &fs::read(skin_path?).unwrap()
+        ).unwrap();
 
         let skin = skin_data.to_rgba8();
         let (width, height) = skin.dimensions();
@@ -171,18 +167,15 @@ extern "C" fn steve_stock_callback(hash: u64, data: *mut u8, size: usize, out_si
         };
         let stock_icon = stock_generation::gen_stock_image(&skin);
 
-        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
-        let mut writer = std::io::Cursor::new(data_out);
+        let mut writer = std::io::Cursor::new(data);
 
         bntx::BntxFile::from_image(DynamicImage::ImageRgba8(stock_icon), "steve")
             .write(&mut writer)
             .unwrap();
 
-        *out_size = writer.position() as usize;
-
-        true
+        Some(writer.position() as usize)
     } else {
-        false
+        None
     }
 }
 
@@ -242,10 +235,10 @@ fn css_fighter_selected(ctx: &InlineCtx) {
     }
 }
 
-const MAX_STOCK_ICON_SIZE: u32 = 0x9c68;
-const MAX_CHARA_3_SIZE: u32 = 0x727068;
-const MAX_CHARA_4_SIZE: u32 = 0x2d068;
-const MAX_CHARA_6_SIZE: u32 = 0x81068;
+const MAX_STOCK_ICON_SIZE: usize = 0x9c68;
+const MAX_CHARA_3_SIZE: usize = 0x727068;
+const MAX_CHARA_4_SIZE: usize = 0x2d068;
+const MAX_CHARA_6_SIZE: usize = 0x81068;
 
 static CHARA_3_MASK: &[u8] = include_bytes!("chara_3_mask.png");
 static CHARA_4_MASK: &[u8] = include_bytes!("chara_4_mask.png");
@@ -263,17 +256,12 @@ fn get_render<'a>(slot: usize) -> Option<MappedMutexGuard<'a, image::RgbaImage>>
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
-    let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
-
+#[arc_callback]
+fn chara_3_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     if let Some(slot) = STEVE_CHARA_3.iter().position(|&x| x == hash) {
-        let output = if let Some(render) = get_render(slot) {
-            render
-        } else {
-            return false
-        };
+        let output = get_render(slot)?;
 
-        let mut writer = std::io::Cursor::new(data_out);
+        let mut writer = std::io::Cursor::new(data);
 
         let chara_3_mask = image::load_from_memory_with_format(CHARA_3_MASK, image::ImageFormat::Png)
             .unwrap()
@@ -291,86 +279,63 @@ extern "C" fn chara_3_callback(hash: u64, data: *mut u8, size: usize, out_size: 
             .write(&mut writer)
             .unwrap();
 
-        *out_size = writer.position() as usize;
+        Some(writer.position() as usize)
     } else {
-        let size = load_original_file(hash, data_out);
-
-        *out_size = size;
-    }
-
-    true
-}
-
-#[cfg(feature = "renders")] 
-extern "C" fn chara_4_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
-    if let Some(slot) = STEVE_CHARA_4.iter().position(|&x| x == hash) {
-        let output = if let Some(render) = get_render(slot) {
-            render
-        } else {
-            return false
-        };
-        
-        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
-        let mut writer = std::io::Cursor::new(data_out);
-
-        let chara_4_mask = image::load_from_memory_with_format(CHARA_4_MASK, image::ImageFormat::Png)
-            .unwrap()
-            .into_rgba8();
-
-        let chara_4 = minecraft_render::create_chara_image(
-            &output,
-            &chara_4_mask,
-            0.232882008f32,
-            -90.16959f32,
-            9.084564f32,
-        );
-
-        bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_4), "steve")
-            .write(&mut writer)
-            .unwrap();
-
-        *out_size = writer.position() as usize;
-
-        true
-    } else {
-        false
+        load_original_file(hash, data)
     }
 }
 
 #[cfg(feature = "renders")] 
-extern "C" fn chara_6_callback(hash: u64, data: *mut u8, size: usize, out_size: &mut usize) -> bool {
-    if let Some(slot) = STEVE_CHARA_6.iter().position(|&x| x == hash) {
-        let output = if let Some(render) = get_render(slot) {
-            render
-        } else {
-            return false
-        };
-        
-        let data_out = unsafe { std::slice::from_raw_parts_mut(data, size) };
-        let mut writer = std::io::Cursor::new(data_out);
+#[arc_callback]
+fn chara_4_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    let slot = STEVE_CHARA_4.iter().position(|&x| x == hash)?;
+    let output = get_render(slot)?;
+    
+    let mut writer = std::io::Cursor::new(data);
 
-        let chara_6_mask = image::load_from_memory_with_format(CHARA_6_MASK, image::ImageFormat::Png)
-            .unwrap()
-            .into_rgba8();
+    let chara_4_mask = image::load_from_memory_with_format(CHARA_4_MASK, image::ImageFormat::Png)
+        .unwrap()
+        .into_rgba8();
 
-        let chara_6 = minecraft_render::create_chara_image(
-            &output,
-            &chara_6_mask,
-            0.938028f32,
-            -480.87906f32,
-            -96.13269f32,
-        );
+    let chara_4 = minecraft_render::create_chara_image(
+        &output,
+        &chara_4_mask,
+        0.232882008f32,
+        -90.16959f32,
+        9.084564f32,
+    );
 
-        bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_6), "steve")
-            .write(&mut writer)
-            .unwrap();
+    bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_4), "steve")
+        .write(&mut writer)
+        .unwrap();
 
-        *out_size = writer.position() as usize;
+    Some(writer.position() as usize)
+}
 
-        true
-    } else {
-        false
-    }
+#[cfg(feature = "renders")] 
+#[arc_callback]
+fn chara_6_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    let slot = STEVE_CHARA_6.iter().position(|&x| x == hash)?;
+    let output = get_render(slot)?;
+    
+    let mut writer = std::io::Cursor::new(data);
+    let chara_6_mask = image::load_from_memory_with_format(CHARA_6_MASK, image::ImageFormat::Png)
+        .unwrap()
+        .into_rgba8();
+
+    let chara_6 = minecraft_render::create_chara_image(
+        &output,
+        &chara_6_mask,
+        0.938028f32,
+        -480.87906f32,
+        -96.13269f32,
+    );
+
+    bntx::BntxFile::from_image(DynamicImage::ImageRgba8(chara_6), "steve")
+        .write(&mut writer)
+        .unwrap();
+
+    Some(writer.position() as usize)
 }
 
 const SKIP_IDX: usize = 0xC;
@@ -401,25 +366,25 @@ pub fn main() {
     search_offsets();
     skyline::install_hooks!(prepo_add_play_report_hook, css_fighter_selected);
 
-    for hash in &STEVE_NUTEXB_FILES {
-        register_callback(*hash, MAX_FILE_SIZE as _, steve_callback);
+    for &hash in &STEVE_NUTEXB_FILES {
+        steve_callback::install(hash, MAX_FILE_SIZE);
     }
 
-    for hash in &STEVE_STOCK_ICONS {
-        register_callback(*hash, MAX_STOCK_ICON_SIZE as _, steve_stock_callback);
+    for &hash in &STEVE_STOCK_ICONS {
+        steve_stock_callback::install(hash, MAX_STOCK_ICON_SIZE);
     }
 
     #[cfg(feature = "renders")] {
-        for hash in &STEVE_CHARA_3 {
-            register_callback(*hash, MAX_CHARA_3_SIZE as _, chara_3_callback);
+        for &hash in &STEVE_CHARA_3 {
+            chara_3_callback::install(hash, MAX_CHARA_3_SIZE);
         }
 
-        for hash in &STEVE_CHARA_4 {
-            register_callback(*hash, MAX_CHARA_4_SIZE as _, chara_4_callback);
+        for &hash in &STEVE_CHARA_4 {
+            chara_4_callback::install(hash, MAX_CHARA_4_SIZE);
         }
 
-        for hash in &STEVE_CHARA_6 {
-            register_callback(*hash, MAX_CHARA_6_SIZE as _, chara_6_callback);
+        for &hash in &STEVE_CHARA_6 {
+            chara_6_callback::install(hash, MAX_CHARA_6_SIZE);
         }
     }
 }

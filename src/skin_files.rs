@@ -31,16 +31,16 @@ pub static STEVE_STOCK_ICONS: [u64; 8] = [
     smash::hash40("ui/replace_patch/chara/chara_2/chara_2_pickel_07.bntx"),
 ];
 
-pub static STEVE_CHARA_1: [u64; 8] = [
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_00.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_01.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_02.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_03.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_04.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_05.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_06.bntx"),
-    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_07.bntx"),
-];
+//pub static STEVE_CHARA_1: [u64; 8] = [
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_00.bntx"),
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_01.bntx"),
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_02.bntx"),
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_03.bntx"),
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_04.bntx"),
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_05.bntx"),
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_06.bntx"),
+//    smash::hash40("ui/replace_patch/chara/chara_1/chara_1_pickel_07.bntx"),
+//];
 
 pub static STEVE_CHARA_3: [u64; 8] = [
     smash::hash40("ui/replace_patch/chara/chara_3/chara_3_pickel_00.bntx"),

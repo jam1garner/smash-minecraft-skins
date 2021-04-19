@@ -33,6 +33,7 @@ extern "C" {
     #[link_name = "_ZN2nn5swkbd17MakePresetDefaultEPNS0_14KeyboardConfigE"]
     fn make_preset_default(x: *mut [u8; 0x4d0]);
     
+    #[allow(improper_ctypes)]
     #[link_name = "_ZN2nn5swkbd12ShowKeyboardEPNS0_6StringERKNS0_15ShowKeyboardArgE"]
     fn show_keyboard(string: *const SwkbdString, arg: *const ShowKeyboardArg) -> u32;
 
