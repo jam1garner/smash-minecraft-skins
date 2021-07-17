@@ -35,7 +35,7 @@ lazy_static::lazy_static! {
     );
 }
 
-static mut FIGHTER_SELECTED_OFFSET: usize = 0x6695e0;
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66c5b0;
 
 static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
     0xc8, 0x66, 0x40, 0xb9,
