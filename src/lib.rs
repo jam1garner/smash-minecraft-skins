@@ -35,13 +35,12 @@ lazy_static::lazy_static! {
     );
 }
 
-static mut FIGHTER_SELECTED_OFFSET: usize = 0x66c5b0;
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66d500;
 
 static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
-    0xc8, 0x66, 0x40, 0xb9,
-    0x08, 0x01, 0x00, 0x32,
-    0xe0, 0x03, 0x17, 0xaa,
-    0xa8, 0x66, 0x00, 0xb9,
+    0xfc, 0xdb, 0x45, 0x94,
+    0xe0, 0x03, 0x1c, 0x32,
+    0xe1, 0x03, 0x1a, 0x32,
 ];
 
 static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
@@ -356,7 +355,7 @@ fn search_offsets() {
         if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
             FIGHTER_SELECTED_OFFSET = offset + 0x10;
         } else {
-            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 11.0.1 offset. This likely won't work.");
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.0 offset. This likely won't work.");
         }
     }
 }
