@@ -337,23 +337,18 @@ fn chara_6_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     Some(writer.position() as usize)
 }
 
-const SKIP_IDX: usize = 0xC;
-
 fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|window| {
-        &window[..SKIP_IDX] == &needle[..SKIP_IDX] && &window[SKIP_IDX+1..] == &needle[SKIP_IDX+1..] 
-    })
+    haystack.windows(needle.len()).position(|window| window == needle)
 }
 
 fn search_offsets() {
     unsafe {
         let text_ptr = getRegionAddress(Region::Text) as *const u8;
         let text_size = (getRegionAddress(Region::Rodata) as usize) - (text_ptr as usize);
-
         let text = std::slice::from_raw_parts(text_ptr, text_size);
 
         if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
-            FIGHTER_SELECTED_OFFSET = offset + 0x10;
+            FIGHTER_SELECTED_OFFSET = offset;
         } else {
             println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.0 offset. This likely won't work.");
         }
