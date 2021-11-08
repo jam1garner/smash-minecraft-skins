@@ -1,6 +1,6 @@
 [package]
 name = "minecraft_skins"
-version = "1.2.3"
+version = "1.2.4"
 authors = ["jam1garner <jam1.mcleod@hotmail.com>"]
 edition = "2018"
 
