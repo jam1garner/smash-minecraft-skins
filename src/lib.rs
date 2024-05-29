@@ -35,11 +35,11 @@ lazy_static::lazy_static! {
     );
 }
 
-// Default 13.0.1 offset
-static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e120;
+// Default 13.0.2 offset
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e140;
 
 static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
-    0x04, 0xdc, 0x45, 0x94,
+    0xb0, 0xde, 0x45, 0x94,
     0xe0, 0x03, 0x1c, 0x32,
     0xe1, 0x03, 0x1a, 0x32,
 ];
@@ -227,10 +227,14 @@ fn css_fighter_selected(ctx: &InlineCtx) {
                 *render = None;
                 return
             };
-            
+             
             color_correct(&mut skin_data);
-
-            *render = Some(minecraft_render::create_render(&convert_to_modern_skin(&skin_data)));
+            let render_func = if slot % 2 != 0 {
+                minecraft_render::create_render_slim
+            } else {
+                minecraft_render::create_render
+            };
+            *render = Some(render_func(&convert_to_modern_skin(&skin_data)));
         }
     }
 }
@@ -351,7 +355,7 @@ fn search_offsets() {
         if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
             FIGHTER_SELECTED_OFFSET = offset;
         } else {
-            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.1 offset. This likely won't work.");
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.2 offset. This likely won't work.");
         }
     }
 }
