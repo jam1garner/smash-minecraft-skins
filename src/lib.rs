@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::Mutex;
-use image::{DynamicImage, RgbaImage};
+use nutexb::image::{DynamicImage, RgbaImage};
+use nutexb::image;
 
 use arcropolis_api::{arc_callback, load_original_file};
 
@@ -126,7 +127,9 @@ fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
 
         let real_size = (skin_data.height() as usize * skin_data.width() as usize * 4) + 0xb0;
 
-        nutexb::writer::write_nutexb("steve_minecraft???", &DynamicImage::ImageRgba8(skin_data), &mut writer).unwrap();
+        nutexb::NutexbFile::from_image(&skin_data, "steve_minecraft???").ok()?
+            .write(&mut writer)
+            .unwrap();
 
         let data_out = writer.into_inner();
 
@@ -210,7 +213,10 @@ fn steve_emi_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
             Some(_) => {
                 let mut writer = std::io::Cursor::new(data);
                 let img = RgbaImage::from_pixel(64, 64, image::Rgba([0, 0, 0, 255]));
-                nutexb::writer::write_nutexb("no_emission", &DynamicImage::ImageRgba8(img), &mut writer).unwrap();
+
+                nutexb::NutexbFile::from_image(&img, "no_emission").ok()?
+                    .write(&mut writer)
+                    .unwrap();
             
                 Some(writer.position() as usize)
             }

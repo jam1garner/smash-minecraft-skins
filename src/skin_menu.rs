@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use image::DynamicImage;
+use nutexb::image::DynamicImage;
+use nutexb::image;
 use skyline_web::Webpage;
 use ramhorns::{Template, Content};
 use percent_encoding::percent_decode_str;
@@ -211,7 +212,7 @@ fn fix_png(path: &Path) -> Option<Vec<u8>> {
         let image = image::load_from_memory_with_format(&img, image::ImageFormat::Png).ok()?;
         let mut image_buffer = Vec::with_capacity(img.len());
         DynamicImage::ImageRgba8(convert_to_modern_skin(&image.to_rgba8())) 
-            .write_to(&mut image_buffer, image::ImageFormat::Png)
+            .write_to(&mut std::io::Cursor::new(&mut image_buffer), image::ImageFormat::Png)
             .ok()?;
 
         Some(image_buffer)

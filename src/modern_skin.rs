@@ -1,4 +1,5 @@
-use image::GenericImage;
+use nutexb::image::GenericImage;
+use nutexb::image;
 
 /// Copy from one area to another, then flip the resulting area
 fn copy_flipped(image: &mut image::RgbaImage, from_pos: (u32, u32), size: (u32, u32), to_pos: (u32, u32)) {
@@ -7,7 +8,7 @@ fn copy_flipped(image: &mut image::RgbaImage, from_pos: (u32, u32), size: (u32, 
     let (to_x, to_y) = to_pos;
     image.copy_within(image::math::Rect { x, y, width, height }, to_x, to_y);
     
-    image::imageops::flip_horizontal_in_place(&mut image.sub_image(to_x, to_y, width, height));
+    image::imageops::flip_horizontal_in_place(&mut *image.sub_image(to_x, to_y, width, height));
 }
 
 /// Copy from one area to another, shift horizontally (with wrapping) N pixels, then flip the resulting area
@@ -20,7 +21,7 @@ fn copy_rotated_right_flipped(image: &mut image::RgbaImage, from_pos: (u32, u32)
     image.copy_within(image::math::Rect { x, y, width: width - shift, height }, to_x + shift, to_y);
     image.copy_within(image::math::Rect { x: (width - shift), y, width: shift, height }, to_x, to_y);
     
-    image::imageops::flip_horizontal_in_place(&mut image.sub_image(to_x, to_y, width, height));
+    image::imageops::flip_horizontal_in_place(&mut *image.sub_image(to_x, to_y, width, height));
 }
 
 pub fn convert_to_modern_skin(skin_data: &image::RgbaImage) -> image::RgbaImage {

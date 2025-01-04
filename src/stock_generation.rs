@@ -1,6 +1,7 @@
 use ordered_float::NotNan;
-use image::imageops::{overlay, resize, Nearest};
-use image::{GenericImageView, Pixel, ImageFormat};
+use nutexb::image::imageops::{overlay, resize, Nearest};
+use nutexb::image::{GenericImageView, Pixel, ImageFormat};
+use nutexb::image;
 use color_thief::{get_palette, ColorFormat, Color};
 
 fn color_distance(x: Color, y: Color) -> f32 {
@@ -18,7 +19,7 @@ pub fn gen_stock_image(img: &image::RgbaImage) -> image::RgbaImage {
     let pixel_scale = width / 64;
     
     let face = img.view(8 * pixel_scale, 8 * pixel_scale, 8 * pixel_scale, 8 * pixel_scale);
-    let mut face = resize(&face, 40, 40, Nearest);
+    let mut face = resize(&*face, 40, 40, Nearest);
 
     let mut outline = image::load_from_memory_with_format(
         include_bytes!("stock_outline.png"),
