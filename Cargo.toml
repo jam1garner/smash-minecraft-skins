@@ -24,14 +24,13 @@ parking_lot = "0.11.0"
 
 arcropolis-api = { git = "https://github.com/Raytwo/arcropolis_api" }
 
-nutexb = { git = "https://github.com/jam1garner/nutexb" }
+nutexb = { version = "0.7", features = ["image"] }
 bntx = { git = "https://github.com/jam1garner/bntx", branch = "main" }
-image = "0.23.10"
 percent-encoding = "=2.1.0"
 color-thief = "0.2.1"
 ordered-float = "2.0.0"
 
-minecraft_render = { path = "../smash_minecraft_renders", optional = true }
+minecraft_render = { git = "https://github.com/jam1garner/smash_minecraft_renders", optional = true }
 
 [patch.crates-io]
 ring = { git = "https://github.com/skyline-rs/ring" }

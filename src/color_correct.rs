@@ -1,4 +1,5 @@
-use image::Pixel;
+use nutexb::image::Pixel;
+use nutexb::image;
 
 pub fn color_correct(skin_data: &mut image::RgbaImage) {
     for row in skin_data.rows_mut() {

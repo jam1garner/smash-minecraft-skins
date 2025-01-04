@@ -1,11 +1,12 @@
-#![feature(proc_macro_hygiene, new_uninit)]
+#![feature(proc_macro_hygiene, new_zeroed_alloc)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::Mutex;
-use image::DynamicImage;
+use nutexb::image::{DynamicImage, RgbaImage};
+use nutexb::image;
 
 use arcropolis_api::{arc_callback, load_original_file};
 
@@ -35,16 +36,28 @@ lazy_static::lazy_static! {
     );
 }
 
-// Default 13.0.1 offset
-static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e120;
+// Default 13.0.2 offset
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e140;
 
 static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
-    0x04, 0xdc, 0x45, 0x94,
+    0xb0, 0xde, 0x45, 0x94,
     0xe0, 0x03, 0x1c, 0x32,
     0xe1, 0x03, 0x1a, 0x32,
 ];
 
 static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+];
+
+// None means not a custom skin
+static IS_SLIM: [Mutex<Option<bool>>; 8] = [
     parking_lot::const_mutex(None),
     parking_lot::const_mutex(None),
     parking_lot::const_mutex(None),
@@ -85,6 +98,8 @@ const MAX_WIDTH: usize = 1024;
 const MAX_DATA_SIZE: usize = MAX_HEIGHT * MAX_WIDTH * 4;
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
 
+
+
 #[arc_callback]
 fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
@@ -96,26 +111,7 @@ fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
         let skin_data = if let Some(path) = skin_path {
             image::load_from_memory(&fs::read(path).unwrap()).unwrap()
         } else {
-            // load skin for arcrop, temp fix, TODO: change back to "return false" after arcrop works
-            let data = fs::read(
-                Path::new("sd:/ultimate/mods/minecraft_2_layer")
-                    .join(STEVE_NUTEXB_FILES_STR[slot])
-            ).ok()?;
-            
-            use std::io::Write;
-
-            let real_size = data.len();
-
-            writer.write_all(&data).unwrap();
-            let data_out = writer.into_inner();
-            if real_size != MAX_FILE_SIZE {
-                let start_of_header = real_size - 0xb0;
-
-                let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
-                to.copy_from_slice(&from[start_of_header..real_size]);
-            }
-
-            return Some(MAX_FILE_SIZE);
+            return None;
         };
 
         let mut skin_data = skin_data.to_rgba8();
@@ -131,7 +127,9 @@ fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
 
         let real_size = (skin_data.height() as usize * skin_data.width() as usize * 4) + 0xb0;
 
-        nutexb::writer::write_nutexb("steve_minecraft???", &DynamicImage::ImageRgba8(skin_data), &mut writer).unwrap();
+        nutexb::NutexbFile::from_image(&skin_data, "steve_minecraft???").ok()?
+            .write(&mut writer)
+            .unwrap();
 
         let data_out = writer.into_inner();
 
@@ -148,6 +146,85 @@ fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     }
 }
 
+#[arc_callback]
+fn steve_model_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_NUMSHB_FILES, hash, data)
+}
+#[arc_callback]
+fn steve_nusrcmdlb_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_NUSRCMDLB_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_numdlb_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_MODL_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_NUMATB_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_light_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_LIGHT_MODEL_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_dark_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_DARK_MODEL_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_metamon_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_METAMON_MAT_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_mesh_ext_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_MESHEXT_FILES, hash, data)
+}
+
+#[inline]
+fn forward_if_slim(hashes: &'static [u64], hash: u64, data: &mut [u8]) -> Option<usize> {
+    if let Some(slot) = hashes.iter().position(|&x| x == hash) {
+        let is_slim = IS_SLIM[slot].lock();
+        match *is_slim {
+            None => None,
+            Some(slim) => {
+                if slim {
+                    load_original_file(hashes[1], data)
+                } else {
+                    load_original_file(hashes[0], data)
+                }
+            }
+        }
+    } else {
+        None
+    }
+}
+
+#[arc_callback]
+fn steve_emi_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    if let Some(slot) = STEVE_EMI_FILES.iter().position(|&x| x == hash) {
+       let is_slim = IS_SLIM[slot].lock();
+       match *is_slim {
+            None => None,
+            Some(_) => {
+                let mut writer = std::io::Cursor::new(data);
+                let img = RgbaImage::from_pixel(64, 64, image::Rgba([0, 0, 0, 255]));
+
+                nutexb::NutexbFile::from_image(&img, "no_emission").ok()?
+                    .write(&mut writer)
+                    .unwrap();
+            
+                Some(writer.position() as usize)
+            }
+       }
+    } else {
+        None
+    }
+}
 #[arc_callback]
 fn steve_stock_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     if let Some(slot) = STEVE_STOCK_ICONS.iter().position(|&x| x == hash) {
@@ -203,6 +280,7 @@ pub struct FighterInfo {
     fighter_slot: u8,
 }
 
+
 #[skyline::hook(offset = FIGHTER_SELECTED_OFFSET, inline)]
 fn css_fighter_selected(ctx: &InlineCtx) {
     let infos = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfo) };
@@ -217,28 +295,63 @@ fn css_fighter_selected(ctx: &InlineCtx) {
         *SELECTED_SKINS[slot].lock() = path.clone();
 
         let mut render = RENDERS[slot].lock();
-
+        let mut is_slim = IS_SLIM[slot].lock();
+        let mut skin_data = if let Some(path) = path {
+            image::load_from_memory(&fs::read(path).unwrap())
+                .unwrap()
+                .into_rgba8()
+        } else {
+            *render = None;
+            *is_slim = None;
+            return
+        };
+        if skin_data.width() != skin_data.height() {
+            skin_data = convert_to_modern_skin(&skin_data);
+        }
+        let likely_slim = is_likely_slim(&skin_data);
+        if likely_slim {
+            *is_slim = Some(true)
+        } else {
+            *is_slim = Some(false)
+        }
         #[cfg(feature = "renders")] {
-            let mut skin_data = if let Some(path) = path {
-                image::load_from_memory(&fs::read(path).unwrap())
-                    .unwrap()
-                    .into_rgba8()
-            } else {
-                *render = None;
-                return
-            };
-            
             color_correct(&mut skin_data);
-
-            *render = Some(minecraft_render::create_render(&convert_to_modern_skin(&skin_data)));
+            let render_func = if likely_slim {
+                minecraft_render::create_render_slim
+            } else {
+                minecraft_render::create_render
+            };
+            *render = Some(render_func(&skin_data));
         }
     }
 }
+const SLIM_CHECK_X: u32 = 50;
+const SLIM_CHECK_Y: u32 = 19;
+fn is_likely_slim(skin_texture: &image::RgbaImage) -> bool {
+    let scale = skin_texture.width() / 64; 
+    let check_x = SLIM_CHECK_X * scale;
+    let check_y = SLIM_CHECK_Y * scale;
+    let pixel = skin_texture.get_pixel(check_x, check_y);
 
+    if pixel.0[3] == 0 {
+        true
+    } else {
+        false
+    }
+}
+
+const MAX_MODEL_SIZE: usize = 504_960;
+const MAX_MAT_SIZE: usize = 24_060;
+const MAX_LIGHT_MODEL_SIZE: usize = 20_116;
+const MAX_DARK_MODEL_SIZE: usize = 20_116;
+const MAX_METAMON_MAT_SIZE: usize = 14_652;
+const MAX_EMI_SIZE: usize = 23_728;
+const MAX_MESHEXT_SIZE: usize = 4_736;
 const MAX_STOCK_ICON_SIZE: usize = 0x9c68;
 const MAX_CHARA_3_SIZE: usize = 0x727068;
 const MAX_CHARA_4_SIZE: usize = 0x2d068;
 const MAX_CHARA_6_SIZE: usize = 0x81068;
+const MAX_MODL_SIZE: usize = 4944;
 
 static CHARA_3_MASK: &[u8] = include_bytes!("chara_3_mask.png");
 static CHARA_4_MASK: &[u8] = include_bytes!("chara_4_mask.png");
@@ -351,7 +464,7 @@ fn search_offsets() {
         if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
             FIGHTER_SELECTED_OFFSET = offset;
         } else {
-            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.1 offset. This likely won't work.");
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.2 offset. This likely won't work.");
         }
     }
 }
@@ -367,6 +480,40 @@ pub fn main() {
 
     for &hash in &STEVE_STOCK_ICONS {
         steve_stock_callback::install(hash, MAX_STOCK_ICON_SIZE);
+    }
+
+    for &hash in &STEVE_NUMSHB_FILES {
+        steve_model_callback::install(hash, MAX_MODEL_SIZE);
+    }
+
+    for &hash in &STEVE_NUMATB_FILES {
+        steve_mat_callback::install(hash, MAX_MAT_SIZE);
+    }
+
+    for &hash in &STEVE_LIGHT_MODEL_FILES {
+        steve_light_mat_callback::install(hash, MAX_LIGHT_MODEL_SIZE);
+    }
+    
+    for &hash in &STEVE_DARK_MODEL_FILES {
+        steve_dark_mat_callback::install(hash, MAX_DARK_MODEL_SIZE);
+    }
+
+    for &hash in &STEVE_METAMON_MAT_FILES {
+        steve_metamon_mat_callback::install(hash, MAX_METAMON_MAT_SIZE);
+    }
+
+    for &hash in &STEVE_EMI_FILES {
+        steve_emi_callback::install(hash, MAX_EMI_SIZE);
+    }
+    for &hash in &STEVE_MESHEXT_FILES {
+        steve_mesh_ext_callback::install(hash, MAX_MESHEXT_SIZE);
+    }
+
+    for &hash in &STEVE_NUSRCMDLB_FILES {
+        steve_nusrcmdlb_callback::install(hash, MAX_MODL_SIZE);
+    }
+    for &hash in &STEVE_MODL_FILES {
+        steve_numdlb_callback::install(hash, MAX_MODL_SIZE);
     }
 
     #[cfg(feature = "renders")] {
